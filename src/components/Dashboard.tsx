@@ -72,8 +72,9 @@ export default function Dashboard() {
     if (filterStatus && lead.status !== filterStatus) return false
     if (filterKategorie && lead.kategorie !== filterKategorie) return false
     if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      if (!lead.nazev.toLowerCase().includes(q) && !lead.mesto.toLowerCase().includes(q)) return false
+      const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+      const q = norm(searchQuery)
+      if (!norm(lead.nazev).includes(q) && !norm(lead.mesto).includes(q) && !norm(lead.telefon ?? '').includes(q)) return false
     }
     return true
   })
