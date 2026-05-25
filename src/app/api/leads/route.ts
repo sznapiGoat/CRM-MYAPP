@@ -9,9 +9,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'google_maps_url is required' }, { status: 400 })
     }
 
+    const stripBom = (s: string) => s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s
     const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      stripBom(process.env.NEXT_PUBLIC_SUPABASE_URL!),
+      stripBom(process.env.SUPABASE_SERVICE_ROLE_KEY!)
     )
 
     const { error } = await supabase
