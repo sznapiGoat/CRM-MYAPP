@@ -82,6 +82,7 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
   const [mapping, setMapping]           = useState<Record<number, FieldKey>>({})
   const [defaultKat, setDefaultKat]     = useState('')
   const [parseError, setParseError]     = useState<string | null>(null)
+  const [skipDups, setSkipDups]         = useState(true)
   const [importing, setImporting]       = useState(false)
   const [result, setResult]             = useState<{ ok: number; dup: number } | null>(null)
 
@@ -141,17 +142,19 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
   }).filter(r => r.nazev && r.telefon) : []
 
   const existingPhones = new Set(existingLeads.map(l => l.telefon.replace(/[\s\-]/g, '')))
-  const dupCount = readyRows.filter(r => existingPhones.has(r.telefon.replace(/[\s\-]/g, ''))).length
-  const needsKat = !Object.values(mapping).includes('kategorie')
+  const dupRows    = readyRows.filter(r => existingPhones.has(r.telefon.replace(/[\s\-]/g, '')))
+  const dupCount   = dupRows.length
+  const importRows = skipDups ? readyRows.filter(r => !existingPhones.has(r.telefon.replace(/[\s\-]/g, ''))) : readyRows
+  const needsKat   = !Object.values(mapping).includes('kategorie')
 
   async function handleImport() {
-    if (!readyRows.length) return
+    if (!importRows.length) return
     setImporting(true)
 
     let ok = 0
     const CHUNK = 50
-    for (let i = 0; i < readyRows.length; i += CHUNK) {
-      const chunk = readyRows.slice(i, i + CHUNK)
+    for (let i = 0; i < importRows.length; i += CHUNK) {
+      const chunk = importRows.slice(i, i + CHUNK)
       const { data, error } = await supabase
         .from('leads')
         .upsert(chunk, { onConflict: 'google_maps_url', ignoreDuplicates: true })
@@ -159,7 +162,7 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
       if (!error) ok += (data?.length ?? chunk.length)
     }
 
-    setResult({ ok, dup: readyRows.length - ok })
+    setResult({ ok, dup: (skipDups ? dupCount : 0) + (importRows.length - ok) })
     setImporting(false)
     onImported()
   }
@@ -324,14 +327,32 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
                   </div>
                 </div>
 
+                {/* Duplicate control */}
+                {dupCount > 0 && (
+                  <div className="flex items-center justify-between bg-amber-950/40 border border-amber-800/60 rounded px-3 py-2.5">
+                    <div className="text-xs text-amber-300">
+                      <span className="font-semibold">{dupCount}</span> řádků má shodný telefon s existujícím leadem
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer shrink-0 ml-4">
+                      <input
+                        type="checkbox"
+                        checked={skipDups}
+                        onChange={e => setSkipDups(e.target.checked)}
+                        className="rounded accent-amber-400"
+                      />
+                      <span className="text-xs text-amber-300 whitespace-nowrap">Přeskočit duplicity</span>
+                    </label>
+                  </div>
+                )}
+
                 {/* Summary */}
                 <div className="flex items-center gap-4 text-xs">
                   <span className="text-zinc-300">
-                    <span className="font-semibold text-zinc-100">{readyRows.length}</span> leadů k importu
+                    <span className="font-semibold text-zinc-100">{importRows.length}</span> leadů k importu
+                    {skipDups && dupCount > 0 && (
+                      <span className="text-zinc-600 ml-1">({dupCount} přeskočeno)</span>
+                    )}
                   </span>
-                  {dupCount > 0 && (
-                    <span className="text-amber-400">{dupCount} má shodný telefon s existujícím leadem</span>
-                  )}
                   {readyRows.length === 0 && (
                     <span className="text-red-400">Žádné platné řádky (chybí Název nebo Telefon)</span>
                   )}
@@ -347,10 +368,10 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
                   </button>
                   <button
                     onClick={handleImport}
-                    disabled={importing || readyRows.length === 0}
+                    disabled={importing || importRows.length === 0}
                     className="flex-1 px-4 py-2 text-sm bg-zinc-100 text-zinc-900 rounded font-medium hover:bg-white transition-colors disabled:opacity-40"
                   >
-                    {importing ? 'Importuji…' : `Importovat ${readyRows.length} leadů`}
+                    {importing ? 'Importuji…' : `Importovat ${importRows.length} leadů`}
                   </button>
                 </div>
               </>
