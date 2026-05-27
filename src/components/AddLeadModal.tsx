@@ -1,10 +1,12 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import { Lead } from '@/types/lead'
 
 interface Props {
   onClose: () => void
   onAdded: () => void
+  existingLeads: Lead[]
 }
 
 const KATEGORIE = [
@@ -44,9 +46,10 @@ function Field({
   )
 }
 
-export default function AddLeadModal({ onClose, onAdded }: Props) {
+export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [duplicate, setDuplicate] = useState<Lead | null>(null)
   const [form, setForm] = useState({
     nazev: '',
     mesto: '',
@@ -75,6 +78,15 @@ export default function AddLeadModal({ onClose, onAdded }: Props) {
 
   function set(field: keyof typeof form, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  function checkDuplicate(telefon: string) {
+    const normalized = telefon.trim().replace(/[\s\-]/g, '')
+    if (normalized.length < 7) { setDuplicate(null); return }
+    const match = existingLeads.find(l =>
+      l.telefon.replace(/[\s\-]/g, '') === normalized
+    )
+    setDuplicate(match ?? null)
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -167,7 +179,7 @@ export default function AddLeadModal({ onClose, onAdded }: Props) {
                   required
                   type="tel"
                   value={form.telefon}
-                  onChange={e => set('telefon', e.target.value)}
+                  onChange={e => { set('telefon', e.target.value); checkDuplicate(e.target.value) }}
                   placeholder="+420 777 000 111"
                   className={inputCls}
                 />
@@ -228,6 +240,12 @@ export default function AddLeadModal({ onClose, onAdded }: Props) {
                 />
               </Field>
             </div>
+
+            {duplicate && (
+              <div className="mt-3 bg-amber-950/60 border border-amber-800 rounded px-3 py-2 text-xs text-amber-300">
+                Stejné telefonní číslo: <span className="font-medium">{duplicate.nazev}</span> ({duplicate.mesto}, {duplicate.status})
+              </div>
+            )}
 
             {error && (
               <p className="mt-3 text-xs text-red-400">{error}</p>

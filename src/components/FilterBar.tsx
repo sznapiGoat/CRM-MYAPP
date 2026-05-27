@@ -7,6 +7,8 @@ interface Props {
   setFilterStatus: (s: LeadStatus | null) => void
   filterKategorie: string | null
   setFilterKategorie: (k: string | null) => void
+  filterDueToday: boolean
+  setFilterDueToday: (v: boolean) => void
   searchQuery: string
   setSearchQuery: (q: string) => void
   kategorien: string[]
@@ -17,6 +19,8 @@ export default function FilterBar({
   setFilterStatus,
   filterKategorie,
   setFilterKategorie,
+  filterDueToday,
+  setFilterDueToday,
   searchQuery,
   setSearchQuery,
   kategorien,
@@ -41,6 +45,16 @@ export default function FilterBar({
             <option key={k} value={k}>{k}</option>
           ))}
         </select>
+        <button
+          onClick={() => setFilterDueToday(!filterDueToday)}
+          className={`px-3 py-2 rounded text-xs font-medium transition-colors whitespace-nowrap ${
+            filterDueToday
+              ? 'bg-amber-900/60 text-amber-200 border border-amber-700'
+              : 'bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-zinc-200'
+          }`}
+        >
+          Sledovat dnes
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-2">

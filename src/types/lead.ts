@@ -39,19 +39,37 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
 }
 
 export interface Lead {
-  id:             string
-  created_at:     string
-  updated_at:     string
-  nazev:          string
-  mesto:          string
-  telefon:        string
-  adresa:         string
-  web:            string | null
-  google_maps_url:string
-  kategorie:      string
-  duvod:          string
-  status:         LeadStatus
-  poznamka:       string | null
-  rating:         number | null
-  last_called_at: string | null
+  id:              string
+  created_at:      string
+  updated_at:      string
+  nazev:           string
+  mesto:           string
+  telefon:         string
+  adresa:          string
+  web:             string | null
+  google_maps_url: string
+  kategorie:       string
+  duvod:           string
+  status:          LeadStatus
+  poznamka:        string | null
+  rating:          number | null
+  last_called_at:  string | null
+  follow_up_at:    string | null
+}
+
+export interface LeadActivity {
+  id:         string
+  created_at: string
+  lead_id:    string
+  type:       'called' | 'note' | 'status_change'
+  note:       string | null
+  old_status: string | null
+  new_status: string | null
+}
+
+export type ActivityInput = {
+  type:        'called' | 'note' | 'status_change'
+  note?:       string | null
+  old_status?: string
+  new_status?: string
 }

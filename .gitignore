@@ -23,3 +23,5 @@ tsconfig.tsbuildinfo
 *.pem
 npm-debug.log*
 .vercel
+
+.vercel
