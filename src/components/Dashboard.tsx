@@ -10,6 +10,7 @@ import LeadDrawer from './LeadDrawer'
 import AddLeadModal from './AddLeadModal'
 import KanbanView from './KanbanView'
 import FunnelChart from './FunnelChart'
+import ImportModal from './ImportModal'
 
 type ViewMode = 'table' | 'kanban'
 
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [showFunnel, setShowFunnel] = useState(false)
   const [filterStatus, setFilterStatus] = useState<LeadStatus | null>(null)
@@ -152,6 +154,57 @@ export default function Dashboard() {
     URL.revokeObjectURL(url)
   }
 
+  function escHtml(s: string) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
+
+  function exportPDF() {
+    const date = new Date().toLocaleDateString('cs-CZ')
+    const rows = filteredLeads.map(l => `
+      <tr>
+        <td>${escHtml(l.nazev)}</td>
+        <td>${escHtml(l.mesto)}</td>
+        <td>${escHtml(l.telefon)}</td>
+        <td>${STATUS_LABELS[l.status]}</td>
+        <td>${escHtml(l.kategorie)}</td>
+        <td>${l.duvod ? escHtml(l.duvod.slice(0, 45)) : '—'}</td>
+        <td>${l.follow_up_at ? new Date(l.follow_up_at).toLocaleDateString('cs-CZ') : '—'}</td>
+        <td>${new Date(l.created_at).toLocaleDateString('cs-CZ')}</td>
+      </tr>`).join('')
+
+    const html = `<!DOCTYPE html>
+<html lang="cs"><head><meta charset="UTF-8"><title>CRM Leady</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size:10px; color:#111; padding:16px; }
+  h1  { font-size:15px; margin-bottom:3px; }
+  .meta { color:#888; font-size:9px; margin-bottom:14px; }
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:#1a1a1a; color:#fff; }
+  th { padding:5px 7px; text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+  td { padding:4px 7px; border-bottom:1px solid #e8e8e8; vertical-align:top; }
+  tr:nth-child(even) td { background:#f6f6f6; }
+  @page { margin:12mm; }
+  @media print { body { padding:0; } }
+</style></head><body>
+<h1>CRM — Leady</h1>
+<div class="meta">Export: ${date}&nbsp;·&nbsp;${filteredLeads.length} leadů${leads.length !== filteredLeads.length ? ` z ${leads.length}` : ''}</div>
+<table>
+<thead><tr>
+  <th>Název</th><th>Město</th><th>Telefon</th><th>Status</th>
+  <th>Kategorie</th><th>Důvod</th><th>Sledování</th><th>Přidáno</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></body></html>`
+
+    const win = window.open('', '_blank', 'width=920,height=680')
+    if (!win) { alert('Povolte popup okna pro export PDF.'); return }
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 400)
+  }
+
   const leadCount = filteredLeads.length
   const countLabel = leadCount === 1 ? 'lead' : leadCount < 5 ? 'leady' : 'leadů'
 
@@ -195,6 +248,18 @@ export default function Dashboard() {
             </svg>
           </button>
 
+          {/* Import */}
+          <button
+            onClick={() => setShowImportModal(true)}
+            title="Import z Google Sheets / CSV"
+            className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              <line x1="12" y1="3" x2="12" y2="15" stroke="none"/><polyline points="17 8 12 3 7 8"/>
+            </svg>
+          </button>
+
           {/* CSV export */}
           <button
             onClick={exportCSV}
@@ -203,6 +268,18 @@ export default function Dashboard() {
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
+
+          {/* PDF export */}
+          <button
+            onClick={exportPDF}
+            title="Export PDF"
+            className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
             </svg>
           </button>
 
@@ -327,6 +404,14 @@ export default function Dashboard() {
         <AddLeadModal
           onClose={() => setShowAddModal(false)}
           onAdded={fetchLeads}
+          existingLeads={leads}
+        />
+      )}
+
+      {showImportModal && (
+        <ImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={fetchLeads}
           existingLeads={leads}
         />
       )}
