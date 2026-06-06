@@ -72,7 +72,8 @@ export default function LeadsTable({
             return (
               <tr
                 key={lead.id}
-                className={`border-b border-zinc-800/50 transition-colors ${
+                onClick={() => onSelectLead(lead)}
+                className={`border-b border-zinc-800/50 transition-colors cursor-pointer ${
                   isSelected
                     ? 'bg-zinc-800/50'
                     : due
@@ -80,34 +81,37 @@ export default function LeadsTable({
                     : 'hover:bg-zinc-900/60'
                 }`}
               >
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => onToggleSelect(lead.id)}
-                    onClick={e => e.stopPropagation()}
                     className="rounded border-zinc-600 bg-zinc-800 accent-zinc-400 cursor-pointer"
                   />
                 </td>
 
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                   <StatusPill status={lead.status} onClick={() => onCycleStatus(lead)} />
                 </td>
 
                 <td className="px-4 py-3">
-                  <button
-                    onClick={() => onSelectLead(lead)}
-                    className="font-medium text-left hover:underline underline-offset-2 text-zinc-100"
-                  >
-                    {lead.nazev}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-zinc-100 hover:underline underline-offset-2">{lead.nazev}</span>
+                    {lead.next_action && (
+                      <span title={lead.next_action} className="text-blue-500 shrink-0 opacity-70">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                          <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                      </span>
+                    )}
+                  </div>
                 </td>
 
                 <td className="px-4 py-3 text-zinc-400">{lead.mesto}</td>
 
                 <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{lead.telefon}</td>
 
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                   {lead.web ? (
                     <a
                       href={lead.web}
@@ -115,7 +119,6 @@ export default function LeadsTable({
                       rel="noopener noreferrer"
                       title={lead.web}
                       className="text-blue-400 hover:text-blue-300 transition-colors"
-                      onClick={e => e.stopPropagation()}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>

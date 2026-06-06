@@ -28,6 +28,8 @@ export default function Dashboard() {
   const [filterDueToday, setFilterDueToday] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkKat, setBulkKat]   = useState('')
+  const [bulkDate, setBulkDate] = useState('')
 
   const fetchLeads = useCallback(async () => {
     const { data, error } = await supabase
@@ -106,7 +108,14 @@ export default function Dashboard() {
     }
     if (searchQuery) {
       const q = norm(searchQuery)
-      if (!norm(lead.nazev).includes(q) && !norm(lead.mesto).includes(q) && !norm(lead.telefon ?? '').includes(q)) return false
+      if (
+        !norm(lead.nazev).includes(q) &&
+        !norm(lead.mesto).includes(q) &&
+        !norm(lead.telefon ?? '').includes(q) &&
+        !norm(lead.kategorie).includes(q) &&
+        !norm(lead.duvod).includes(q) &&
+        !norm(lead.poznamka ?? '').includes(q)
+      ) return false
     }
     return true
   })
@@ -135,12 +144,29 @@ export default function Dashboard() {
     await supabase.from('leads').delete().in('id', ids)
   }, [selectedIds, selectedLead])
 
-  function exportCSV() {
-    const headers = ['Název','Město','Telefon','Adresa','Web','Kategorie','Status','Důvod','Poznámka','Rating','Vytvořeno','Zavoláno','Sledování']
-    const rows = filteredLeads.map(l => [
+  const handleBulkKategorie = useCallback(async (kategorie: string) => {
+    if (!kategorie.trim()) return
+    const ids = Array.from(selectedIds)
+    setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, kategorie: kategorie.trim() } : l))
+    setSelectedIds(new Set())
+    await supabase.from('leads').update({ kategorie: kategorie.trim() }).in('id', ids)
+  }, [selectedIds])
+
+  const handleBulkFollowUp = useCallback(async (date: string) => {
+    const value = date ? new Date(date + 'T12:00:00').toISOString() : null
+    const ids = Array.from(selectedIds)
+    setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, follow_up_at: value } : l))
+    setSelectedIds(new Set())
+    await supabase.from('leads').update({ follow_up_at: value }).in('id', ids)
+  }, [selectedIds])
+
+  function exportLeadsCSV(leadsToExport: typeof leads) {
+    const headers = ['Název','Město','Telefon','Adresa','Web','Kategorie','Status','Důvod','Poznámka','Rating','Vytvořeno','Zavoláno','Sledování','Další krok']
+    const rows = leadsToExport.map(l => [
       l.nazev, l.mesto, l.telefon, l.adresa, l.web ?? '',
       l.kategorie, STATUS_LABELS[l.status], l.duvod, l.poznamka ?? '',
       l.rating ?? '', l.created_at, l.last_called_at ?? '', l.follow_up_at ?? '',
+      l.next_action ?? '',
     ])
     const csv = [headers, ...rows]
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
@@ -153,6 +179,13 @@ export default function Dashboard() {
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  function exportCSV() { exportLeadsCSV(filteredLeads) }
+
+  const handleBulkExportCSV = useCallback(() => {
+    exportLeadsCSV(leads.filter(l => selectedIds.has(l.id)))
+    setSelectedIds(new Set())
+  }, [selectedIds, leads]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function escHtml(s: string) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -168,6 +201,7 @@ export default function Dashboard() {
         <td>${STATUS_LABELS[l.status]}</td>
         <td>${escHtml(l.kategorie)}</td>
         <td>${l.duvod ? escHtml(l.duvod.slice(0, 45)) : '—'}</td>
+        <td>${l.next_action ? escHtml(l.next_action.slice(0, 45)) : '—'}</td>
         <td>${l.follow_up_at ? new Date(l.follow_up_at).toLocaleDateString('cs-CZ') : '—'}</td>
         <td>${new Date(l.created_at).toLocaleDateString('cs-CZ')}</td>
       </tr>`).join('')
@@ -192,7 +226,7 @@ export default function Dashboard() {
 <table>
 <thead><tr>
   <th>Název</th><th>Město</th><th>Telefon</th><th>Status</th>
-  <th>Kategorie</th><th>Důvod</th><th>Sledování</th><th>Přidáno</th>
+  <th>Kategorie</th><th>Důvod</th><th>Další krok</th><th>Sledování</th><th>Přidáno</th>
 </tr></thead>
 <tbody>${rows}</tbody>
 </table></body></html>`
@@ -215,7 +249,7 @@ export default function Dashboard() {
         <h1 className="text-sm font-semibold tracking-tight text-zinc-100 shrink-0">CRM — Leady</h1>
 
         <div className="flex items-center gap-2 ml-auto">
-          {/* View toggle */}
+          {/* View controls group */}
           <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded overflow-hidden">
             <button
               onClick={() => setViewMode('table')}
@@ -240,48 +274,57 @@ export default function Dashboard() {
           {/* Funnel toggle */}
           <button
             onClick={() => setShowFunnel(v => !v)}
-            title="Funnel"
-            className={`px-2.5 py-1.5 rounded border text-xs transition-colors ${showFunnel ? 'bg-zinc-700 border-zinc-600 text-zinc-100' : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}
+            title="Zobrazit přehled funnelu"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-xs font-medium transition-colors ${showFunnel ? 'bg-zinc-700 border-zinc-600 text-zinc-100' : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M22 3H2l8 9.46V19l4 2V12.46z"/>
             </svg>
+            Funnel
           </button>
 
-          {/* Import */}
+          {/* Divider */}
+          <div className="w-px h-5 bg-zinc-800" />
+
+          {/* Data transfer group */}
           <button
             onClick={() => setShowImportModal(true)}
             title="Import z Google Sheets / CSV"
-            className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              <line x1="12" y1="3" x2="12" y2="15" stroke="none"/><polyline points="17 8 12 3 7 8"/>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
+            Import
           </button>
 
-          {/* CSV export */}
           <button
             onClick={exportCSV}
             title="Export CSV"
-            className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
+            CSV
           </button>
 
-          {/* PDF export */}
           <button
             onClick={exportPDF}
             title="Export PDF"
-            className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
+            PDF
           </button>
+
+          {/* Divider */}
+          <div className="w-px h-5 bg-zinc-800" />
 
           <button
             onClick={() => setShowAddModal(true)}
@@ -307,7 +350,11 @@ export default function Dashboard() {
       </header>
 
       <main className="px-4 sm:px-6 py-6 space-y-5 max-w-[1600px] mx-auto">
-        <StatsBar leads={leads} />
+        <StatsBar
+          leads={leads}
+          onFilterStatus={s => { setFilterStatus(s); setFilterDueToday(false) }}
+          onFilterDueToday={() => { setFilterDueToday(v => !v) }}
+        />
 
         {showFunnel && <FunnelChart leads={leads} />}
 
@@ -362,32 +409,55 @@ export default function Dashboard() {
 
       {/* Bulk actions bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 bg-zinc-900 border border-zinc-700 rounded-xl px-5 py-3 flex items-center gap-4 shadow-2xl">
-          <span className="text-sm text-zinc-300 font-medium shrink-0">
-            {selectedIds.size} vybraných
-          </span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 flex items-center gap-3 shadow-2xl flex-wrap max-w-[92vw]">
+          <span className="text-sm text-zinc-300 font-medium shrink-0">{selectedIds.size} vybraných</span>
+
+          <div className="w-px h-4 bg-zinc-700 shrink-0" />
+
           <select
             defaultValue=""
             onChange={e => { if (e.target.value) { handleBulkStatus(e.target.value as LeadStatus); e.target.value = '' } }}
             className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-300 focus:outline-none"
           >
-            <option value="" disabled>Změnit status…</option>
-            {STATUS_ORDER.map(s => (
-              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-            ))}
+            <option value="" disabled>Status…</option>
+            {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
           </select>
+
+          <input
+            value={bulkKat}
+            onChange={e => setBulkKat(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && bulkKat.trim()) { handleBulkKategorie(bulkKat); setBulkKat('') } }}
+            list="bulk-kat-list"
+            placeholder="Kategorie + Enter"
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-300 focus:outline-none w-36 placeholder:text-zinc-600"
+          />
+          <datalist id="bulk-kat-list">
+            {kategorien.map(k => <option key={k} value={k} />)}
+          </datalist>
+
+          <input
+            type="date"
+            value={bulkDate}
+            title="Nastavit datum sledování"
+            onChange={e => { setBulkDate(e.target.value); if (e.target.value) { handleBulkFollowUp(e.target.value); setBulkDate('') } }}
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-300 focus:outline-none [color-scheme:dark]"
+          />
+
+          <div className="w-px h-4 bg-zinc-700 shrink-0" />
+
           <button
-            onClick={handleBulkDelete}
-            className="text-xs text-red-400 hover:text-red-300 transition-colors"
+            onClick={handleBulkExportCSV}
+            title="Export vybraných do CSV"
+            className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
           >
-            Smazat
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            CSV
           </button>
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-          >
-            Zrušit
-          </button>
+
+          <button onClick={handleBulkDelete} className="text-xs text-red-400 hover:text-red-300 transition-colors">Smazat</button>
+          <button onClick={() => setSelectedIds(new Set())} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Zrušit</button>
         </div>
       )}
 

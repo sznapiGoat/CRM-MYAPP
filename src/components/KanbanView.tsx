@@ -35,6 +35,11 @@ function LeadCard({
       {lead.telefon && (
         <div className="text-xs text-zinc-500">{lead.telefon}</div>
       )}
+      {lead.next_action && (
+        <div className="text-xs text-blue-400 truncate" title={lead.next_action}>
+          <span className="text-blue-600 mr-0.5">→</span>{lead.next_action}
+        </div>
+      )}
       {lead.follow_up_at && (
         <div className={`text-xs font-medium ${isDue(lead.follow_up_at) ? 'text-amber-400' : 'text-zinc-600'}`}>
           {new Date(lead.follow_up_at).toLocaleDateString('cs-CZ')}
@@ -48,9 +53,11 @@ function LeadCard({
         <button
           onClick={e => { e.stopPropagation(); onCycleStatus() }}
           title="Přesunout na další status"
-          className="text-zinc-700 hover:text-zinc-400 transition-colors text-xs px-1"
+          className="text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700 border border-transparent hover:border-zinc-600 rounded p-0.5 transition-all"
         >
-          →
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
         </button>
       </div>
     </div>

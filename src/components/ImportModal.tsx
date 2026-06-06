@@ -112,6 +112,15 @@ const FIELD_OPTIONS: { value: FieldKey; label: string }[] = [
 function normStr(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 }
+function normName(s: string): string {
+  return normStr(s).replace(/\b(s\.?r\.?o\.?|a\.?s\.?|spol\.?)\b/g, '').replace(/\s+/g, ' ').trim()
+}
+function normCity(s: string): string {
+  return normStr(s).replace(/\s+\d+$/, '').trim()
+}
+function dupKey(nazev: string, mesto: string): string {
+  return normName(nazev) + '|' + normCity(mesto)
+}
 
 function autoMap(header: string): FieldKey {
   const n = normStr(header)
@@ -261,11 +270,44 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
     ? smartRows.map(r => ({ ...r, poznamka: null as null, rating: null as null, status: 'novy' as const }))
     : columnRows
 
-  const existingPhones = new Set(existingLeads.map(l => l.telefon.replace(/[\s\-]/g, '')))
-  const dupCount   = readyRows.filter(r => r.telefon !== '—' && existingPhones.has(r.telefon.replace(/[\s\-]/g, ''))).length
-  const importRows = skipDups
-    ? readyRows.filter(r => r.telefon === '—' || !existingPhones.has(r.telefon.replace(/[\s\-]/g, '')))
-    : readyRows
+  // Existing-lead lookup sets
+  const existingPhones   = new Set(existingLeads.map(l => l.telefon.replace(/[\s\-]/g, '')))
+  const existingNameKeys = new Set(existingLeads.map(l => dupKey(l.nazev, l.mesto)))
+
+  // Intra-batch dedup: remove rows that are duplicates of an earlier row in the same import
+  const batchPhones   = new Set<string>()
+  const batchNameKeys = new Set<string>()
+  const batchDupSet   = new Set<number>()
+  readyRows.forEach((r, i) => {
+    const phone   = r.telefon !== '—' ? r.telefon.replace(/[\s\-]/g, '') : null
+    const nameKey = r.nazev ? dupKey(r.nazev, r.mesto) : null
+    if ((phone && batchPhones.has(phone)) || (nameKey && batchNameKeys.has(nameKey))) {
+      batchDupSet.add(i)
+    } else {
+      if (phone)   batchPhones.add(phone)
+      if (nameKey) batchNameKeys.add(nameKey)
+    }
+  })
+
+  // Rows that are duplicates of existing leads (after removing intra-batch dups)
+  const existingDupSet = new Set<number>()
+  readyRows.forEach((r, i) => {
+    if (batchDupSet.has(i)) return
+    const phone   = r.telefon !== '—' ? r.telefon.replace(/[\s\-]/g, '') : null
+    const nameKey = r.nazev ? dupKey(r.nazev, r.mesto) : null
+    if ((phone && existingPhones.has(phone)) || (nameKey && existingNameKeys.has(nameKey))) {
+      existingDupSet.add(i)
+    }
+  })
+
+  const intraBatchDupCount = batchDupSet.size
+  const existingDupCount   = existingDupSet.size
+
+  const importRows = readyRows.filter((r, i) => {
+    if (batchDupSet.has(i)) return false
+    if (skipDups && existingDupSet.has(i)) return false
+    return true
+  })
   const noPhoneCount = readyRows.filter(r => r.telefon === '—').length
   const needsKat = parsed?.mode === 'columns' && !Object.values(mapping).includes('kategorie')
 
@@ -283,7 +325,7 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
         .select('id')
       if (!error) ok += (data?.length ?? chunk.length)
     }
-    setResult({ ok, dup: (skipDups ? dupCount : 0) + (importRows.length - ok) })
+    setResult({ ok, dup: (skipDups ? existingDupCount : 0) + intraBatchDupCount + (importRows.length - ok) })
     setImporting(false)
     onImported()
   }
@@ -439,11 +481,18 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
                   </div>
                 </div>
 
-                {/* Duplicate warning */}
-                {dupCount > 0 && (
+                {/* Intra-batch duplicates — always removed */}
+                {intraBatchDupCount > 0 && (
+                  <div className="bg-zinc-800/60 border border-zinc-700 rounded px-3 py-2 text-xs text-zinc-400">
+                    <span className="font-semibold text-zinc-300">{intraBatchDupCount}</span> duplicit v rámci dávky — přeskočeno automaticky
+                  </div>
+                )}
+
+                {/* Duplicates against existing leads */}
+                {existingDupCount > 0 && (
                   <div className="flex items-center justify-between bg-amber-950/40 border border-amber-800/60 rounded px-3 py-2.5">
                     <span className="text-xs text-amber-300">
-                      <span className="font-semibold">{dupCount}</span> řádků — shodný telefon v CRM
+                      <span className="font-semibold">{existingDupCount}</span> řádků již v CRM (telefon nebo jméno+město)
                     </span>
                     <label className="flex items-center gap-2 cursor-pointer ml-4 shrink-0">
                       <input type="checkbox" checked={skipDups} onChange={e => setSkipDups(e.target.checked)} className="rounded accent-amber-400" />
@@ -455,7 +504,7 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
                 {/* Summary */}
                 <div className="flex items-center gap-4 text-xs text-zinc-500">
                   <span><span className="text-zinc-100 font-semibold">{importRows.length}</span> leadů k importu</span>
-                  {skipDups && dupCount > 0 && <span>({dupCount} duplikátů přeskočeno)</span>}
+                  {skipDups && existingDupCount > 0 && <span>({existingDupCount} existujících přeskočeno)</span>}
                   {noPhoneCount > 0 && <span>{noPhoneCount}× bez telefonu</span>}
                   {readyRows.length === 0 && <span className="text-red-400">Žádné platné řádky (musí mít Název)</span>}
                 </div>

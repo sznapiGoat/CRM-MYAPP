@@ -55,6 +55,7 @@ export interface Lead {
   rating:          number | null
   last_called_at:  string | null
   follow_up_at:    string | null
+  next_action?:    string | null
 }
 
 export interface LeadActivity {

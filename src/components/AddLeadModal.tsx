@@ -9,6 +9,16 @@ interface Props {
   existingLeads: Lead[]
 }
 
+function normStr(s: string) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+function normName(s: string) {
+  return normStr(s).replace(/\b(s\.?r\.?o\.?|a\.?s\.?|spol\.?)\b/g, '').replace(/\s+/g, ' ').trim()
+}
+function normCity(s: string) {
+  return normStr(s).replace(/\s+\d+$/, '').trim()
+}
+
 const KATEGORIE = [
   'autoškola', 'elektrikář', 'instalatér', 'klempíř',
   'malíř', 'pokrývač', 'tesař', 'truhlář',
@@ -50,6 +60,7 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [duplicate, setDuplicate] = useState<Lead | null>(null)
+  const [dupReason, setDupReason] = useState<'phone' | 'name' | null>(null)
   const [form, setForm] = useState({
     nazev: '',
     mesto: '',
@@ -80,14 +91,20 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  function checkDuplicate(telefon: string) {
-    const normalized = telefon.trim().replace(/[\s\-]/g, '')
-    if (normalized.length < 7) { setDuplicate(null); return }
-    const match = existingLeads.find(l =>
-      l.telefon.replace(/[\s\-]/g, '') === normalized
-    )
-    setDuplicate(match ?? null)
-  }
+  useEffect(() => {
+    const phone = form.telefon.trim().replace(/[\s\-]/g, '')
+    if (phone.length >= 7) {
+      const m = existingLeads.find(l => l.telefon.replace(/[\s\-]/g, '') === phone)
+      if (m) { setDuplicate(m); setDupReason('phone'); return }
+    }
+    if (form.nazev.trim() && form.mesto.trim()) {
+      const key = normName(form.nazev) + '|' + normCity(form.mesto)
+      const m = existingLeads.find(l => normName(l.nazev) + '|' + normCity(l.mesto) === key)
+      if (m) { setDuplicate(m); setDupReason('name'); return }
+    }
+    setDuplicate(null)
+    setDupReason(null)
+  }, [form.telefon, form.nazev, form.mesto, existingLeads])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -179,7 +196,7 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
                   required
                   type="tel"
                   value={form.telefon}
-                  onChange={e => { set('telefon', e.target.value); checkDuplicate(e.target.value) }}
+                  onChange={e => set('telefon', e.target.value)}
                   placeholder="+420 777 000 111"
                   className={inputCls}
                 />
@@ -243,7 +260,8 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
 
             {duplicate && (
               <div className="mt-3 bg-amber-950/60 border border-amber-800 rounded px-3 py-2 text-xs text-amber-300">
-                Stejné telefonní číslo: <span className="font-medium">{duplicate.nazev}</span> ({duplicate.mesto}, {duplicate.status})
+                {dupReason === 'phone' ? 'Stejný telefon' : 'Stejné jméno a město'}:{' '}
+                <span className="font-medium">{duplicate.nazev}</span> ({duplicate.mesto}, {duplicate.status})
               </div>
             )}
 
