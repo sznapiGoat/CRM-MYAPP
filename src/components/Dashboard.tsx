@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ActivityInput, Lead, LeadStatus, STATUS_LABELS, STATUS_ORDER } from '@/types/lead'
 import StatsBar from './StatsBar'
@@ -247,6 +248,17 @@ export default function Dashboard() {
       {/* Nav */}
       <header className="sticky top-0 z-30 bg-[#0f0f0f]/80 backdrop-blur border-b border-zinc-800 px-5 py-3.5 flex items-center justify-between gap-3">
         <h1 className="text-sm font-semibold tracking-tight text-zinc-100 shrink-0">CRM — Leady</h1>
+
+        <Link
+          href="/notes"
+          title="Poznámky"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-500 hover:text-zinc-300 text-xs transition-colors shrink-0"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>
+          </svg>
+          Poznámky
+        </Link>
 
         <div className="flex items-center gap-2 ml-auto">
           {/* View controls group */}
