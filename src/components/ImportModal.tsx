@@ -1,7 +1,7 @@
 'use client'
 
 import { ChangeEvent, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { upsertLeads } from '@/lib/db'
 import { Lead } from '@/types/lead'
 
 interface Props {
@@ -319,11 +319,12 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
     let ok = 0
     for (let i = 0; i < importRows.length; i += 50) {
       const chunk = importRows.slice(i, i + 50)
-      const { data, error } = await supabase
-        .from('leads')
-        .upsert(chunk, { onConflict: 'google_maps_url', ignoreDuplicates: true })
-        .select('id')
-      if (!error) ok += (data?.length ?? chunk.length)
+      try {
+        const { inserted } = await upsertLeads(chunk as unknown as Record<string, unknown>[])
+        ok += inserted
+      } catch {
+        // chunk failed — count nothing for it, continue with the rest
+      }
     }
     setResult({ ok, dup: (skipDups ? existingDupCount : 0) + intraBatchDupCount + (importRows.length - ok) })
     setImporting(false)

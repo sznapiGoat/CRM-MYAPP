@@ -5,45 +5,42 @@ Jednoduchý CRM pro správu leadů — pro freelance webdesignéra, který obvol
 ## Stack
 
 - **Next.js 14** (App Router)
-- **Supabase** (PostgreSQL + REST)
+- **Convex** (reaktivní databáze + serverové funkce)
 - **Tailwind CSS** + TypeScript
 
 ---
 
 ## Nastavení
 
-### 1. Supabase projekt
+### 1. Convex deployment
 
-1. Přejdi na [supabase.com](https://supabase.com) a vytvoř nový projekt.
-2. V SQL editoru spusť celý obsah souboru `supabase/schema.sql`.
-3. V nastavení projektu (`Settings → API`) si zkopíruj:
-   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-   - **anon / public key** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - **service_role key** → `SUPABASE_SERVICE_ROLE_KEY`
+1. Nainstaluj závislosti: `npm install`.
+2. Spusť `npx convex dev` — přihlásí tě, vytvoří deployment, vygeneruje
+   `convex/_generated/` a zapíše `CONVEX_DEPLOYMENT` + `NEXT_PUBLIC_CONVEX_URL`
+   do `.env.local`. Nech běžet (sleduje změny v `convex/`).
 
 ### 2. Proměnné prostředí
 
-Zkopíruj `.env.local.example` jako `.env.local` a doplň hodnoty:
+`.env.local` doplní `npx convex dev` automaticky. Šablona viz `.env.local.example`:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+CONVEX_DEPLOYMENT=dev:your-deployment-name
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
 ```
 
-### 3. Instalace a spuštění
+### 3. Spuštění
 
 ```bash
-npm install
 npm run dev
 # → http://localhost:3000
+# (v druhém terminálu nech běžet `npx convex dev`)
 ```
 
 ---
 
 ## API endpoint pro n8n
 
-`POST /api/leads` — přijme JSON s daty leadu, upsertuje do Supabase podle `google_maps_url` (deduplication). Pokud lead existuje, přeskočí ho.
+`POST /api/leads` — přijme JSON s daty leadu, upsertuje do Convexu podle `google_maps_url` (deduplication). Pokud lead existuje, přeskočí ho.
 
 ### Příklad těla požadavku
 

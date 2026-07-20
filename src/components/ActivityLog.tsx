@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { listActivities } from '@/lib/db'
 import { LeadActivity, STATUS_LABELS } from '@/types/lead'
 
 interface Props {
@@ -63,16 +63,17 @@ export default function ActivityLog({ leadId }: Props) {
 
   useEffect(() => {
     setLoading(true)
-    supabase
-      .from('lead_activities')
-      .select('*')
-      .eq('lead_id', leadId)
-      .order('created_at', { ascending: false })
-      .limit(30)
-      .then(({ data }) => {
-        setActivities((data ?? []) as LeadActivity[])
+    let cancelled = false
+    listActivities(leadId)
+      .then((data) => {
+        if (cancelled) return
+        setActivities(data.slice(0, 30))
         setLoading(false)
       })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
   }, [leadId])
 
   if (loading) {

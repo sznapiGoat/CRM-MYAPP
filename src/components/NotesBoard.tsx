@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import * as db from '@/lib/db'
 import { Note, NoteColor, NOTE_COLORS, NOTE_COLOR_CLASSES, NOTE_COLOR_SWATCH } from '@/types/note'
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -14,43 +14,32 @@ export default function NotesBoard() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const fetchNotes = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .order('pinned', { ascending: false })
-      .order('updated_at', { ascending: false })
-
-    if (error) setError(error.message)
-    else setNotes((data ?? []) as Note[])
+    try {
+      const data = await db.listNotes()
+      setNotes(data)
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchNotes() }, [fetchNotes])
 
   const addNote = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('notes')
-      .insert({ title: '', content: '', color: 'default', pinned: false })
-      .select()
-      .single()
-
-    if (!error && data) setNotes(prev => [data as Note, ...prev])
+    const data = await db.createNote()
+    if (data) setNotes(prev => [data, ...prev])
   }, [])
 
   const updateNote = useCallback(async (id: string, updates: Partial<Note>) => {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n))
-    const { data } = await supabase
-      .from('notes')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-    if (data) setNotes(prev => prev.map(n => n.id === id ? { ...n, ...(data as Note) } : n))
+    const data = await db.updateNote(id, updates)
+    if (data) setNotes(prev => prev.map(n => n.id === id ? { ...n, ...data } : n))
   }, [])
 
   const deleteNote = useCallback(async (id: string) => {
     setNotes(prev => prev.filter(n => n.id !== id))
-    await supabase.from('notes').delete().eq('id', id)
+    await db.deleteNote(id)
   }, [])
 
   const q = searchQuery.trim() ? norm(searchQuery) : ''

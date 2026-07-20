@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { ConvexHttpClient } from 'convex/browser'
+import { api } from '../../../../convex/_generated/api'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' }
+
+const stripBom = (s: string) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s)
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,24 +27,21 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const stripBom = (s: string) => s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s
-    const supabase = createClient(
-      stripBom(process.env.NEXT_PUBLIC_SUPABASE_URL!),
-      stripBom(process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const convexUrl = stripBom(
+      process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.CONVEX_URL ?? ''
     )
-
-    const { error } = await supabase
-      .from('leads')
-      .upsert(body, { onConflict: 'google_maps_url', ignoreDuplicates: true })
-
-    if (error) {
+    if (!convexUrl) {
       return NextResponse.json(
-        { error: error.message },
+        { error: 'CONVEX_URL is not configured' },
         { status: 500, headers: JSON_HEADERS }
       )
     }
 
-    return NextResponse.json({ ok: true }, { headers: JSON_HEADERS })
+    const convex = new ConvexHttpClient(convexUrl)
+    // upsert-by-google_maps_url with ignoreDuplicates semantics lives in Convex
+    const { inserted } = await convex.mutation(api.leads.upsert, { rows: [body] })
+
+    return NextResponse.json({ ok: true, inserted }, { headers: JSON_HEADERS })
   } catch {
     return NextResponse.json(
       { error: 'Invalid request body' },

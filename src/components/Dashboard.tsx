@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import * as db from '@/lib/db'
 import { ActivityInput, Lead, LeadStatus, STATUS_LABELS, STATUS_ORDER } from '@/types/lead'
 import StatsBar from './StatsBar'
 import FilterBar from './FilterBar'
@@ -33,15 +33,12 @@ export default function Dashboard() {
   const [bulkDate, setBulkDate] = useState('')
 
   const fetchLeads = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      setError(error.message)
-    } else {
-      setLeads((data ?? []) as Lead[])
+    try {
+      const data = await db.listLeads()
+      setLeads(data)
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     }
     setLoading(false)
   }, [])
@@ -52,20 +49,14 @@ export default function Dashboard() {
     setLeads(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
     setSelectedLead(prev => prev?.id === id ? { ...prev, ...updates } as Lead : prev)
 
-    const { data, error } = await supabase
-      .from('leads')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (!error && data) {
-      setLeads(prev => prev.map(l => l.id === id ? { ...l, ...(data as Lead) } : l))
-      setSelectedLead(prev => prev?.id === id ? { ...prev, ...(data as Lead) } : prev)
+    const data = await db.updateLead(id, updates)
+    if (data) {
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, ...data } : l))
+      setSelectedLead(prev => prev?.id === id ? { ...prev, ...data } : prev)
     }
 
     if (activity) {
-      await supabase.from('lead_activities').insert({ lead_id: id, ...activity })
+      await db.insertActivity(id, activity)
     }
   }, [])
 
@@ -83,7 +74,7 @@ export default function Dashboard() {
     const updates: Partial<Lead> = { last_called_at: new Date().toISOString() }
     if (lead.status === 'novy') updates.status = 'zavolano'
     await updateLead(lead.id, updates)
-    await supabase.from('lead_activities').insert({ lead_id: lead.id, type: 'called' })
+    await db.insertActivity(lead.id, { type: 'called' })
   }, [updateLead])
 
   const handleToggleSelect = useCallback((id: string) => {
@@ -132,7 +123,7 @@ export default function Dashboard() {
     const ids = Array.from(selectedIds)
     setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, status } : l))
     setSelectedIds(new Set())
-    await supabase.from('leads').update({ status }).in('id', ids)
+    await db.bulkUpdateLeads(ids, { status })
   }, [selectedIds])
 
   const handleBulkDelete = useCallback(async () => {
@@ -142,7 +133,7 @@ export default function Dashboard() {
     setLeads(prev => prev.filter(l => !selectedIds.has(l.id)))
     if (selectedLead && selectedIds.has(selectedLead.id)) setSelectedLead(null)
     setSelectedIds(new Set())
-    await supabase.from('leads').delete().in('id', ids)
+    await db.bulkDeleteLeads(ids)
   }, [selectedIds, selectedLead])
 
   const handleBulkKategorie = useCallback(async (kategorie: string) => {
@@ -150,7 +141,7 @@ export default function Dashboard() {
     const ids = Array.from(selectedIds)
     setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, kategorie: kategorie.trim() } : l))
     setSelectedIds(new Set())
-    await supabase.from('leads').update({ kategorie: kategorie.trim() }).in('id', ids)
+    await db.bulkUpdateLeads(ids, { kategorie: kategorie.trim() })
   }, [selectedIds])
 
   const handleBulkFollowUp = useCallback(async (date: string) => {
@@ -158,7 +149,7 @@ export default function Dashboard() {
     const ids = Array.from(selectedIds)
     setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, follow_up_at: value } : l))
     setSelectedIds(new Set())
-    await supabase.from('leads').update({ follow_up_at: value }).in('id', ids)
+    await db.bulkUpdateLeads(ids, { follow_up_at: value })
   }, [selectedIds])
 
   function exportLeadsCSV(leadsToExport: typeof leads) {
