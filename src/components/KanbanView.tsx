@@ -1,11 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { Lead, LeadStatus, STATUS_COLORS, STATUS_LABELS, STATUS_ORDER } from '@/types/lead'
 
 interface Props {
   leads: Lead[]
   onSelectLead: (lead: Lead) => void
-  onCycleStatus: (lead: Lead) => void
+  onSetStatus: (lead: Lead, status: LeadStatus) => void
 }
 
 function isDue(dateStr: string | null): boolean {
@@ -19,15 +20,24 @@ function isDue(dateStr: string | null): boolean {
 function LeadCard({
   lead,
   onSelect,
-  onCycleStatus,
+  onDragStart,
+  onDragEnd,
+  dragging,
 }: {
   lead: Lead
   onSelect: () => void
-  onCycleStatus: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
+  dragging: boolean
 }) {
   return (
     <div
-      className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 space-y-1.5 cursor-pointer hover:border-zinc-600 transition-colors"
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart() }}
+      onDragEnd={onDragEnd}
+      className={`bg-zinc-900 border border-zinc-800 rounded-lg p-3 space-y-1.5 cursor-grab active:cursor-grabbing hover:border-zinc-600 transition-colors ${
+        dragging ? 'opacity-40' : ''
+      }`}
       onClick={onSelect}
     >
       <div className="font-medium text-sm text-zinc-100 leading-snug">{lead.nazev}</div>
@@ -45,53 +55,67 @@ function LeadCard({
           {new Date(lead.follow_up_at).toLocaleDateString('cs-CZ')}
         </div>
       )}
-      <div className="flex items-center justify-between pt-0.5">
-        {lead.rating != null
-          ? <span className="text-xs text-zinc-600">★ {lead.rating}</span>
-          : <span />
-        }
-        <button
-          onClick={e => { e.stopPropagation(); onCycleStatus() }}
-          title="Přesunout na další status"
-          className="text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700 border border-transparent hover:border-zinc-600 rounded p-0.5 transition-all"
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </button>
-      </div>
+      {lead.rating != null && (
+        <div className="text-xs text-zinc-600 pt-0.5">★ {lead.rating}</div>
+      )}
     </div>
   )
 }
 
-export default function KanbanView({ leads, onSelectLead, onCycleStatus }: Props) {
+export default function KanbanView({ leads, onSelectLead, onSetStatus }: Props) {
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState<LeadStatus | null>(null)
+
   const byStatus = Object.fromEntries(
     STATUS_ORDER.map(s => [s, leads.filter(l => l.status === s)])
   ) as Record<LeadStatus, Lead[]>
 
+  const dragLead = leads.find(l => l.id === dragId) ?? null
+
+  const handleDrop = (status: LeadStatus) => {
+    if (dragLead && dragLead.status !== status) onSetStatus(dragLead, status)
+    setDragId(null)
+    setDragOver(null)
+  }
+
   return (
     <div className="flex gap-3 overflow-x-auto pb-4 min-h-[400px]">
-      {STATUS_ORDER.map(status => (
-        <div key={status} className="shrink-0 w-56">
-          <div className={`${STATUS_COLORS[status]} flex items-center justify-between px-3 py-2 rounded-t text-xs font-semibold`}>
-            <span>{STATUS_LABELS[status]}</span>
-            <span className="opacity-60">{byStatus[status].length}</span>
+      {STATUS_ORDER.map(status => {
+        const isTarget = dragOver === status && dragLead?.status !== status
+        return (
+          <div
+            key={status}
+            className="shrink-0 w-56"
+            onDragOver={e => { if (dragLead) { e.preventDefault(); setDragOver(status) } }}
+            onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(prev => prev === status ? null : prev) }}
+            onDrop={e => { e.preventDefault(); handleDrop(status) }}
+          >
+            <div className={`${STATUS_COLORS[status]} flex items-center justify-between px-3 py-2 rounded-t text-xs font-semibold`}>
+              <span>{STATUS_LABELS[status]}</span>
+              <span className="opacity-60">{byStatus[status].length}</span>
+            </div>
+            <div className={`border border-t-0 rounded-b p-2 space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto transition-colors ${
+              isTarget ? 'bg-zinc-800/60 border-zinc-500' : 'bg-zinc-950 border-zinc-800'
+            }`}>
+              {byStatus[status].length === 0 && (
+                <div className="text-xs text-zinc-700 text-center py-8">
+                  {isTarget ? 'Pustit sem' : 'Prázdné'}
+                </div>
+              )}
+              {byStatus[status].map(lead => (
+                <LeadCard
+                  key={lead.id}
+                  lead={lead}
+                  dragging={dragId === lead.id}
+                  onSelect={() => onSelectLead(lead)}
+                  onDragStart={() => setDragId(lead.id)}
+                  onDragEnd={() => { setDragId(null); setDragOver(null) }}
+                />
+              ))}
+            </div>
           </div>
-          <div className="bg-zinc-950 border border-t-0 border-zinc-800 rounded-b p-2 space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto">
-            {byStatus[status].length === 0 && (
-              <div className="text-xs text-zinc-700 text-center py-8">Prázdné</div>
-            )}
-            {byStatus[status].map(lead => (
-              <LeadCard
-                key={lead.id}
-                lead={lead}
-                onSelect={() => onSelectLead(lead)}
-                onCycleStatus={() => onCycleStatus(lead)}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

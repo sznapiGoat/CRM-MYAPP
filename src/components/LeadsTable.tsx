@@ -1,16 +1,33 @@
 'use client'
 
-import { Lead } from '@/types/lead'
-import StatusPill from './StatusPill'
+import { Lead, LeadStatus } from '@/types/lead'
+import type { SortKey, SortState } from './Dashboard'
+import StatusMenu from './StatusMenu'
 
 interface Props {
   leads: Lead[]
-  onCycleStatus: (lead: Lead) => void
+  onSetStatus: (lead: Lead, status: LeadStatus) => void
   onSelectLead: (lead: Lead) => void
   selectedIds: Set<string>
   onToggleSelect: (id: string) => void
   onToggleAll: () => void
+  sort: SortState
+  onSort: (key: SortKey) => void
 }
+
+// Column header definitions — `key` present => sortable.
+const COLUMNS: { label: string; key?: SortKey }[] = [
+  { label: 'Status' },
+  { label: 'Název', key: 'nazev' },
+  { label: 'Město', key: 'mesto' },
+  { label: 'Telefon' },
+  { label: 'Web' },
+  { label: 'Důvod' },
+  { label: 'Rating', key: 'rating' },
+  { label: 'Sledování', key: 'follow_up_at' },
+  { label: 'Přidáno', key: 'created_at' },
+  { label: 'Poznámka' },
+]
 
 function fmtDate(s: string) {
   return new Date(s).toLocaleDateString('cs-CZ')
@@ -31,11 +48,13 @@ function isDue(dateStr: string | null): boolean {
 
 export default function LeadsTable({
   leads,
-  onCycleStatus,
+  onSetStatus,
   onSelectLead,
   selectedIds,
   onToggleSelect,
   onToggleAll,
+  sort,
+  onSort,
 }: Props) {
   if (leads.length === 0) {
     return (
@@ -60,9 +79,29 @@ export default function LeadsTable({
                 className="rounded border-zinc-600 bg-zinc-800 accent-zinc-400 cursor-pointer"
               />
             </th>
-            {['Status','Název','Město','Telefon','Web','Důvod','Rating','Sledování','Přidáno','Poznámka'].map(h => (
-              <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>
-            ))}
+            {COLUMNS.map(col => {
+              const active = col.key && sort?.key === col.key
+              return (
+                <th key={col.label} className="px-4 py-3 text-left font-medium">
+                  {col.key ? (
+                    <button
+                      type="button"
+                      onClick={() => onSort(col.key!)}
+                      className={`flex items-center gap-1 uppercase tracking-wide transition-colors ${
+                        active ? 'text-zinc-200' : 'hover:text-zinc-300'
+                      }`}
+                    >
+                      {col.label}
+                      <span className="text-[9px] leading-none">
+                        {active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </button>
+                  ) : (
+                    col.label
+                  )}
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
@@ -91,7 +130,7 @@ export default function LeadsTable({
                 </td>
 
                 <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                  <StatusPill status={lead.status} onClick={() => onCycleStatus(lead)} />
+                  <StatusMenu status={lead.status} onSelect={s => onSetStatus(lead, s)} />
                 </td>
 
                 <td className="px-4 py-3">

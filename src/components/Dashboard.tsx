@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useQuery } from 'convex/react'
 import Link from 'next/link'
 import * as db from '@/lib/db'
+import { api } from '../../convex/_generated/api'
 import { ActivityInput, Lead, LeadStatus, STATUS_LABELS, STATUS_ORDER } from '@/types/lead'
 import StatsBar from './StatsBar'
 import FilterBar from './FilterBar'
@@ -12,14 +14,39 @@ import AddLeadModal from './AddLeadModal'
 import KanbanView from './KanbanView'
 import FunnelChart from './FunnelChart'
 import ImportModal from './ImportModal'
+import UndoToast from './UndoToast'
 
 type ViewMode = 'table' | 'kanban'
 
+export type SortKey = 'nazev' | 'mesto' | 'rating' | 'follow_up_at' | 'created_at'
+export type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null
+
+const stripDia = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+function sortLeads(list: Lead[], sort: SortState): Lead[] {
+  if (!sort) return list
+  const dir = sort.dir === 'asc' ? 1 : -1
+  return [...list].sort((a, b) => {
+    switch (sort.key) {
+      case 'rating':
+        return ((a.rating ?? -Infinity) - (b.rating ?? -Infinity)) * dir
+      case 'follow_up_at':
+        return (a.follow_up_at ?? '').localeCompare(b.follow_up_at ?? '') * dir
+      case 'created_at':
+        return a.created_at.localeCompare(b.created_at) * dir
+      default:
+        return stripDia(String(a[sort.key] ?? '')).localeCompare(stripDia(String(b[sort.key] ?? ''))) * dir
+    }
+  })
+}
+
 export default function Dashboard() {
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  // Live, reactive lead list — updates in real time across tabs/devices.
+  const leadsData = useQuery(api.leads.list) as Lead[] | undefined
+  const loading = leadsData === undefined
+  const leads = useMemo(() => leadsData ?? [], [leadsData])
+
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('table')
@@ -31,51 +58,74 @@ export default function Dashboard() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkKat, setBulkKat]   = useState('')
   const [bulkDate, setBulkDate] = useState('')
+  const [sort, setSort] = useState<SortState>(null)
+  const [undo, setUndo] = useState<{ id: number; message: string; undo: () => void } | null>(null)
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
+  const undoSeq = useRef(0)
 
-  const fetchLeads = useCallback(async () => {
-    try {
-      const data = await db.listLeads()
-      setLeads(data)
-      setError(null)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-    setLoading(false)
+  const showUndo = useCallback((message: string, undoFn: () => void) => {
+    setUndo({ id: ++undoSeq.current, message, undo: undoFn })
   }, [])
 
-  useEffect(() => { fetchLeads() }, [fetchLeads])
+  const runUndo = useCallback(() => {
+    undo?.undo()
+    setUndo(null)
+  }, [undo])
 
+  const toggleSort = useCallback((key: SortKey) => {
+    setSort(prev => {
+      if (!prev || prev.key !== key) return { key, dir: 'asc' }
+      if (prev.dir === 'asc') return { key, dir: 'desc' }
+      return null
+    })
+  }, [])
+
+  const selectedLead = useMemo(
+    () => leads.find(l => l.id === selectedLeadId) ?? null,
+    [leads, selectedLeadId],
+  )
+
+  // Mutations no longer touch local state — the reactive `leads` query above
+  // reflects server changes automatically.
   const updateLead = useCallback(async (id: string, updates: Partial<Lead>, activity?: ActivityInput) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
-    setSelectedLead(prev => prev?.id === id ? { ...prev, ...updates } as Lead : prev)
-
-    const data = await db.updateLead(id, updates)
-    if (data) {
-      setLeads(prev => prev.map(l => l.id === id ? { ...l, ...data } : l))
-      setSelectedLead(prev => prev?.id === id ? { ...prev, ...data } : prev)
-    }
-
+    await db.updateLead(id, updates)
     if (activity) {
       await db.insertActivity(id, activity)
     }
   }, [])
 
-  const cycleStatus = useCallback((lead: Lead) => {
-    const idx = STATUS_ORDER.indexOf(lead.status)
-    const nextStatus = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length]
-    updateLead(lead.id, { status: nextStatus }, {
+  const changeStatus = useCallback((lead: Lead, status: LeadStatus) => {
+    if (status === lead.status) return
+    const prevStatus = lead.status
+    updateLead(lead.id, { status }, {
       type: 'status_change',
-      old_status: lead.status,
-      new_status: nextStatus,
+      old_status: prevStatus,
+      new_status: status,
     })
-  }, [updateLead])
+    showUndo(`Přesunuto na „${STATUS_LABELS[status]}"`, () => {
+      updateLead(lead.id, { status: prevStatus }, {
+        type: 'status_change',
+        old_status: status,
+        new_status: prevStatus,
+      })
+    })
+  }, [updateLead, showUndo])
+
+  const setStatus = useCallback((lead: Lead, status: LeadStatus) => {
+    changeStatus(lead, status)
+  }, [changeStatus])
 
   const markAsCalled = useCallback(async (lead: Lead) => {
+    const prevStatus = lead.status
+    const prevCalled = lead.last_called_at
     const updates: Partial<Lead> = { last_called_at: new Date().toISOString() }
     if (lead.status === 'novy') updates.status = 'zavolano'
     await updateLead(lead.id, updates)
     await db.insertActivity(lead.id, { type: 'called' })
-  }, [updateLead])
+    showUndo('Označeno jako zavoláno', () => {
+      updateLead(lead.id, { last_called_at: prevCalled, status: prevStatus })
+    })
+  }, [updateLead, showUndo])
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -90,6 +140,7 @@ export default function Dashboard() {
   const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
   const filteredLeads = leads.filter(lead => {
+    if (hiddenIds.has(lead.id)) return false
     if (filterStatus && lead.status !== filterStatus) return false
     if (filterKategorie && lead.kategorie !== filterKategorie) return false
     if (filterDueToday) {
@@ -121,25 +172,45 @@ export default function Dashboard() {
 
   const handleBulkStatus = useCallback(async (status: LeadStatus) => {
     const ids = Array.from(selectedIds)
-    setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, status } : l))
     setSelectedIds(new Set())
     await db.bulkUpdateLeads(ids, { status })
   }, [selectedIds])
 
-  const handleBulkDelete = useCallback(async () => {
+  const unhide = useCallback((ids: string[]) => {
+    setHiddenIds(prev => {
+      const next = new Set(prev)
+      ids.forEach(id => next.delete(id))
+      return next
+    })
+  }, [])
+
+  // Deferred delete: hide immediately, commit to the server after the undo
+  // window elapses. Undo cancels the commit and restores the rows.
+  const handleBulkDelete = useCallback(() => {
     const ids = Array.from(selectedIds)
-    const label = `${ids.length} lead${ids.length === 1 ? '' : 'ů'}`
-    if (!window.confirm(`Smazat ${label}? Tato akce je nevratná.`)) return
-    setLeads(prev => prev.filter(l => !selectedIds.has(l.id)))
-    if (selectedLead && selectedIds.has(selectedLead.id)) setSelectedLead(null)
+    if (ids.length === 0) return
     setSelectedIds(new Set())
-    await db.bulkDeleteLeads(ids)
-  }, [selectedIds, selectedLead])
+    setHiddenIds(prev => {
+      const next = new Set(prev)
+      ids.forEach(id => next.add(id))
+      return next
+    })
+
+    const timeoutId = setTimeout(async () => {
+      await db.bulkDeleteLeads(ids)
+      unhide(ids)
+    }, 6000)
+
+    const label = ids.length === 1 ? 'lead' : ids.length < 5 ? 'leady' : 'leadů'
+    showUndo(`Smazáno ${ids.length} ${label}`, () => {
+      clearTimeout(timeoutId)
+      unhide(ids)
+    })
+  }, [selectedIds, showUndo, unhide])
 
   const handleBulkKategorie = useCallback(async (kategorie: string) => {
     if (!kategorie.trim()) return
     const ids = Array.from(selectedIds)
-    setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, kategorie: kategorie.trim() } : l))
     setSelectedIds(new Set())
     await db.bulkUpdateLeads(ids, { kategorie: kategorie.trim() })
   }, [selectedIds])
@@ -147,7 +218,6 @@ export default function Dashboard() {
   const handleBulkFollowUp = useCallback(async (date: string) => {
     const value = date ? new Date(date + 'T12:00:00').toISOString() : null
     const ids = Array.from(selectedIds)
-    setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, follow_up_at: value } : l))
     setSelectedIds(new Set())
     await db.bulkUpdateLeads(ids, { follow_up_at: value })
   }, [selectedIds])
@@ -230,6 +300,8 @@ export default function Dashboard() {
     win.focus()
     setTimeout(() => win.print(), 400)
   }
+
+  const displayLeads = sortLeads(filteredLeads, sort)
 
   const leadCount = filteredLeads.length
   const countLabel = leadCount === 1 ? 'lead' : leadCount < 5 ? 'leady' : 'leadů'
@@ -331,23 +403,12 @@ export default function Dashboard() {
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-900 rounded px-3 py-1.5 text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded px-3 py-1.5 text-xs font-semibold transition-colors shadow-sm shadow-indigo-900/40"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M12 5v14M5 12h14"/>
             </svg>
             Přidat lead
-          </button>
-
-          <button
-            onClick={fetchLeads}
-            title="Obnovit"
-            className="text-zinc-600 hover:text-zinc-300 transition-colors p-1.5 rounded"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-              <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-            </svg>
           </button>
         </div>
       </header>
@@ -377,13 +438,7 @@ export default function Dashboard() {
           <div className="text-center text-zinc-600 py-20 text-sm">Načítám…</div>
         )}
 
-        {error && (
-          <div className="bg-red-950 border border-red-800 text-red-300 rounded px-4 py-3 text-sm">
-            Chyba: {error}
-          </div>
-        )}
-
-        {!loading && !error && (
+        {!loading && (
           <>
             <p className="text-xs text-zinc-600">
               {leadCount} {countLabel}
@@ -392,18 +447,20 @@ export default function Dashboard() {
 
             {viewMode === 'table' ? (
               <LeadsTable
-                leads={filteredLeads}
-                onCycleStatus={cycleStatus}
-                onSelectLead={setSelectedLead}
+                leads={displayLeads}
+                onSetStatus={setStatus}
+                onSelectLead={l => setSelectedLeadId(l.id)}
                 selectedIds={selectedIds}
                 onToggleSelect={handleToggleSelect}
                 onToggleAll={handleToggleAll}
+                sort={sort}
+                onSort={toggleSort}
               />
             ) : (
               <KanbanView
                 leads={filteredLeads}
-                onSelectLead={setSelectedLead}
-                onCycleStatus={cycleStatus}
+                onSelectLead={l => setSelectedLeadId(l.id)}
+                onSetStatus={setStatus}
               />
             )}
           </>
@@ -467,7 +524,7 @@ export default function Dashboard() {
       {selectedLead && (
         <LeadDrawer
           lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
+          onClose={() => setSelectedLeadId(null)}
           onUpdate={updateLead}
           onMarkAsCalled={markAsCalled}
         />
@@ -476,7 +533,7 @@ export default function Dashboard() {
       {showAddModal && (
         <AddLeadModal
           onClose={() => setShowAddModal(false)}
-          onAdded={fetchLeads}
+          onAdded={() => {}}
           existingLeads={leads}
         />
       )}
@@ -484,8 +541,17 @@ export default function Dashboard() {
       {showImportModal && (
         <ImportModal
           onClose={() => setShowImportModal(false)}
-          onImported={fetchLeads}
+          onImported={() => {}}
           existingLeads={leads}
+        />
+      )}
+
+      {undo && (
+        <UndoToast
+          key={undo.id}
+          message={undo.message}
+          onUndo={runUndo}
+          onDismiss={() => setUndo(null)}
         />
       )}
     </div>
