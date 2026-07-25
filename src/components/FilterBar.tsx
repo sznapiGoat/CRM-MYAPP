@@ -29,11 +29,12 @@ export default function FilterBar({
     <div className="space-y-3">
       <div className="flex gap-3 flex-wrap">
         <input
+          id="lead-search"
           type="search"
-          placeholder="Hledat název nebo město…"
+          placeholder="Hledat název nebo město…  ( / )"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="flex-1 min-w-[200px] bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+          className="flex-1 min-w-[200px] bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-600 transition-colors"
         />
         <select
           value={filterKategorie ?? ''}

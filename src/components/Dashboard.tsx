@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from 'convex/react'
 import Link from 'next/link'
 import * as db from '@/lib/db'
@@ -38,6 +38,24 @@ function sortLeads(list: Lead[], sort: SortState): Lead[] {
         return stripDia(String(a[sort.key] ?? '')).localeCompare(stripDia(String(b[sort.key] ?? ''))) * dir
     }
   })
+}
+
+const PREFS_KEY = 'crm-prefs'
+
+// Build an undo callback that restores a single field to each lead's previous
+// value, grouped so we issue one bulk update per distinct old value.
+function makeRestore<K extends keyof Lead>(affected: Lead[], field: K): () => void {
+  const groups = new Map<Lead[K], string[]>()
+  for (const l of affected) {
+    const g = groups.get(l[field])
+    if (g) g.push(l.id)
+    else groups.set(l[field], [l.id])
+  }
+  return () => {
+    Array.from(groups.entries()).forEach(([val, ids]) => {
+      db.bulkUpdateLeads(ids, { [field]: val } as Partial<Lead>)
+    })
+  }
 }
 
 export default function Dashboard() {
@@ -84,6 +102,64 @@ export default function Dashboard() {
     () => leads.find(l => l.id === selectedLeadId) ?? null,
     [leads, selectedLeadId],
   )
+
+  // Persist view/filter preferences across reloads.
+  const prefsHydrated = useRef(false)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PREFS_KEY)
+      if (raw) {
+        const p = JSON.parse(raw)
+        if (p.viewMode) setViewMode(p.viewMode)
+        if ('filterStatus' in p) setFilterStatus(p.filterStatus)
+        if ('filterKategorie' in p) setFilterKategorie(p.filterKategorie)
+        if (typeof p.filterDueToday === 'boolean') setFilterDueToday(p.filterDueToday)
+        if ('sort' in p) setSort(p.sort)
+        if (typeof p.showFunnel === 'boolean') setShowFunnel(p.showFunnel)
+      }
+    } catch { /* ignore malformed prefs */ }
+    prefsHydrated.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!prefsHydrated.current) return
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({
+        viewMode, filterStatus, filterKategorie, filterDueToday, sort, showFunnel,
+      }))
+    } catch { /* ignore quota errors */ }
+  }, [viewMode, filterStatus, filterKategorie, filterDueToday, sort, showFunnel])
+
+  // Keyboard shortcuts: `/` focus search, `n` new lead, `Esc` close overlays.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      const typing = !!el && (
+        el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ||
+        el.tagName === 'SELECT' || el.isContentEditable
+      )
+
+      if (e.key === 'Escape') {
+        setShowAddModal(false)
+        setShowImportModal(false)
+        setSelectedLeadId(null)
+        if (typing) el?.blur()
+        return
+      }
+
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return
+
+      if (e.key === '/') {
+        e.preventDefault()
+        document.getElementById('lead-search')?.focus()
+      } else if (e.key === 'n') {
+        e.preventDefault()
+        setShowAddModal(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   // Mutations no longer touch local state — the reactive `leads` query above
   // reflects server changes automatically.
@@ -171,10 +247,14 @@ export default function Dashboard() {
   }, [filteredLeads])
 
   const handleBulkStatus = useCallback(async (status: LeadStatus) => {
-    const ids = Array.from(selectedIds)
+    const affected = leads.filter(l => selectedIds.has(l.id))
+    const ids = affected.map(l => l.id)
+    if (ids.length === 0) return
     setSelectedIds(new Set())
+    const restore = makeRestore(affected, 'status')
     await db.bulkUpdateLeads(ids, { status })
-  }, [selectedIds])
+    showUndo(`Status změněn u ${ids.length} ${ids.length === 1 ? 'leadu' : 'leadů'}`, restore)
+  }, [selectedIds, leads, showUndo])
 
   const unhide = useCallback((ids: string[]) => {
     setHiddenIds(prev => {
@@ -210,17 +290,25 @@ export default function Dashboard() {
 
   const handleBulkKategorie = useCallback(async (kategorie: string) => {
     if (!kategorie.trim()) return
-    const ids = Array.from(selectedIds)
+    const affected = leads.filter(l => selectedIds.has(l.id))
+    const ids = affected.map(l => l.id)
+    if (ids.length === 0) return
     setSelectedIds(new Set())
+    const restore = makeRestore(affected, 'kategorie')
     await db.bulkUpdateLeads(ids, { kategorie: kategorie.trim() })
-  }, [selectedIds])
+    showUndo(`Kategorie změněna u ${ids.length} ${ids.length === 1 ? 'leadu' : 'leadů'}`, restore)
+  }, [selectedIds, leads, showUndo])
 
   const handleBulkFollowUp = useCallback(async (date: string) => {
     const value = date ? new Date(date + 'T12:00:00').toISOString() : null
-    const ids = Array.from(selectedIds)
+    const affected = leads.filter(l => selectedIds.has(l.id))
+    const ids = affected.map(l => l.id)
+    if (ids.length === 0) return
     setSelectedIds(new Set())
+    const restore = makeRestore(affected, 'follow_up_at')
     await db.bulkUpdateLeads(ids, { follow_up_at: value })
-  }, [selectedIds])
+    showUndo(`Sledování změněno u ${ids.length} ${ids.length === 1 ? 'leadu' : 'leadů'}`, restore)
+  }, [selectedIds, leads, showUndo])
 
   function exportLeadsCSV(leadsToExport: typeof leads) {
     const headers = ['Název','Město','Telefon','Adresa','Web','Kategorie','Status','Důvod','Poznámka','Rating','Vytvořeno','Zavoláno','Sledování','Další krok']
@@ -403,6 +491,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => setShowAddModal(true)}
+            title="Přidat lead (n)"
             className="flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded px-3 py-1.5 text-xs font-semibold transition-colors shadow-sm shadow-indigo-900/40"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
