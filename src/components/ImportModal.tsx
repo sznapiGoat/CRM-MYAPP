@@ -383,7 +383,7 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
                       value={rawText}
                       onChange={e => setRawText(e.target.value)}
                       rows={8}
-                      placeholder={'++: Autoškola Novák\tRůžová 1, 434 01 Most 1, Česko\t420777000111\thttps://...\tBez webu\thttps://maps.google.com/...'}
+                      placeholder={'++: Instalatérství Novák\tRůžová 1, 434 01 Most 1, Česko\t420777000111\thttps://...\tBez webu\thttps://maps.google.com/...'}
                       className={`${inputCls} resize-none font-mono text-xs`}
                     />
                   </div>
@@ -447,7 +447,7 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
                 {(needsKat || parsed.mode === 'smart') && (
                   <div className="flex items-center gap-3">
                     <label className="text-xs text-zinc-500 whitespace-nowrap">Kategorie pro všechny:</label>
-                    <input value={defaultKat} onChange={e => setDefaultKat(e.target.value)} placeholder="autoškola"
+                    <input value={defaultKat} onChange={e => setDefaultKat(e.target.value)} placeholder="instalatér"
                       className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
                     />
                   </div>

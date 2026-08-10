@@ -20,10 +20,10 @@ function normCity(s: string) {
 }
 
 const KATEGORIE = [
-  'autoškola', 'elektrikář', 'instalatér', 'klempíř',
-  'malíř', 'pokrývač', 'tesař', 'truhlář',
-  'zahradník', 'zámečník', 'topenář', 'obkladač',
-  'podlahář', 'stěhování', 'čistění',
+  'instalatér', 'elektrikář', 'topenář', 'pokrývač',
+  'klempíř', 'zedník', 'obkladač', 'podlahář',
+  'malíř', 'tesař', 'truhlář', 'zahradník',
+  'zámečník', 'stěhování', 'čistění', 'autoškola',
 ]
 
 const DUVODY = [
@@ -176,7 +176,7 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
                   autoFocus
                   value={form.nazev}
                   onChange={e => set('nazev', e.target.value)}
-                  placeholder="Autoškola Novák"
+                  placeholder="Instalatérství Novák"
                   className={inputCls}
                 />
               </Field>
@@ -208,7 +208,7 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
                   list="kategorie-opts"
                   value={form.kategorie}
                   onChange={e => set('kategorie', e.target.value)}
-                  placeholder="autoškola"
+                  placeholder="instalatér"
                   className={inputCls}
                 />
                 <datalist id="kategorie-opts">
