@@ -71,6 +71,8 @@ export default function Dashboard() {
   const [showFunnel, setShowFunnel] = useState(false)
   const [filterStatus, setFilterStatus] = useState<LeadStatus | null>(null)
   const [filterKategorie, setFilterKategorie] = useState<string | null>(null)
+  const [filterDuvod, setFilterDuvod] = useState<string | null>(null)
+  const [minRating, setMinRating] = useState<number | null>(null)
   const [filterDueToday, setFilterDueToday] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -113,6 +115,8 @@ export default function Dashboard() {
         if (p.viewMode) setViewMode(p.viewMode)
         if ('filterStatus' in p) setFilterStatus(p.filterStatus)
         if ('filterKategorie' in p) setFilterKategorie(p.filterKategorie)
+        if ('filterDuvod' in p) setFilterDuvod(p.filterDuvod)
+        if ('minRating' in p) setMinRating(p.minRating)
         if (typeof p.filterDueToday === 'boolean') setFilterDueToday(p.filterDueToday)
         if ('sort' in p) setSort(p.sort)
         if (typeof p.showFunnel === 'boolean') setShowFunnel(p.showFunnel)
@@ -125,10 +129,11 @@ export default function Dashboard() {
     if (!prefsHydrated.current) return
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify({
-        viewMode, filterStatus, filterKategorie, filterDueToday, sort, showFunnel,
+        viewMode, filterStatus, filterKategorie, filterDuvod, minRating,
+        filterDueToday, sort, showFunnel,
       }))
     } catch { /* ignore quota errors */ }
-  }, [viewMode, filterStatus, filterKategorie, filterDueToday, sort, showFunnel])
+  }, [viewMode, filterStatus, filterKategorie, filterDuvod, minRating, filterDueToday, sort, showFunnel])
 
   // Keyboard shortcuts: `/` focus search, `n` new lead, `Esc` close overlays.
   useEffect(() => {
@@ -212,6 +217,32 @@ export default function Dashboard() {
   }, [])
 
   const kategorien = Array.from(new Set(leads.map(l => l.kategorie))).sort()
+  const duvody = Array.from(new Set(leads.map(l => l.duvod).filter(Boolean))).sort()
+
+  // "Zastaralá platforma" — matched loosely because imported rows spell the
+  // reason in several ways ("zastaralý web", "Zastaralá platforma (Wix)", …).
+  const OUTDATED_RE = /zastaral/i
+  const outdatedDuvod = duvody.find(d => OUTDATED_RE.test(d)) ?? 'Zastaralá platforma'
+
+  const bestActive =
+    filterDuvod === outdatedDuvod && minRating === 4 &&
+    sort?.key === 'rating' && sort.dir === 'desc'
+
+  // One click for the highest-value lead: outdated site + strong Google rating,
+  // best-rated first.
+  const handleBestLeads = useCallback(() => {
+    if (bestActive) {
+      setFilterDuvod(null)
+      setMinRating(null)
+      setSort(null)
+      return
+    }
+    setFilterDuvod(outdatedDuvod)
+    setMinRating(4)
+    setFilterStatus(null)
+    setFilterDueToday(false)
+    setSort({ key: 'rating', dir: 'desc' })
+  }, [bestActive, outdatedDuvod])
 
   const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
@@ -219,6 +250,8 @@ export default function Dashboard() {
     if (hiddenIds.has(lead.id)) return false
     if (filterStatus && lead.status !== filterStatus) return false
     if (filterKategorie && lead.kategorie !== filterKategorie) return false
+    if (filterDuvod && lead.duvod !== filterDuvod) return false
+    if (minRating !== null && (lead.rating ?? -1) < minRating) return false
     if (filterDueToday) {
       if (!lead.follow_up_at) return false
       const d = new Date(lead.follow_up_at)
@@ -516,11 +549,18 @@ export default function Dashboard() {
           setFilterStatus={setFilterStatus}
           filterKategorie={filterKategorie}
           setFilterKategorie={setFilterKategorie}
+          filterDuvod={filterDuvod}
+          setFilterDuvod={setFilterDuvod}
+          minRating={minRating}
+          setMinRating={setMinRating}
           filterDueToday={filterDueToday}
           setFilterDueToday={setFilterDueToday}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           kategorien={kategorien}
+          duvody={duvody}
+          onBestLeads={handleBestLeads}
+          bestActive={bestActive}
         />
 
         {loading && (
