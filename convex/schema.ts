@@ -19,6 +19,9 @@ export default defineSchema({
     status: v.string(),
     poznamka: v.union(v.string(), v.null()),
     rating: v.union(v.number(), v.null()),
+    // Number of Google reviews behind `rating`. Optional: rows imported before
+    // this field existed simply don't have it.
+    reviews_count: v.optional(v.union(v.number(), v.null())),
     last_called_at: v.union(v.string(), v.null()),
     follow_up_at: v.union(v.string(), v.null()),
     next_action: v.optional(v.union(v.string(), v.null())),

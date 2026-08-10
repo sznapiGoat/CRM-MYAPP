@@ -69,6 +69,8 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
     adresa: '',
     web: '',
     duvod: 'Přidán ručně',
+    rating: '',
+    reviews_count: '',
     poznamka: '',
   })
 
@@ -119,6 +121,8 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
       adresa:          form.adresa.trim() || form.mesto.trim(),
       web:             form.web.trim() || null,
       duvod:           form.duvod.trim() || 'Přidán ručně',
+      rating:          form.rating.trim() ? parseFloat(form.rating.replace(',', '.')) : null,
+      reviews_count:   form.reviews_count.trim() ? parseInt(form.reviews_count, 10) : null,
       poznamka:        form.poznamka.trim() || null,
       google_maps_url: `manual:${crypto.randomUUID()}`,
     }
@@ -245,6 +249,30 @@ export default function AddLeadModal({ onClose, onAdded, existingLeads }: Props)
                 <datalist id="duvod-opts">
                   {DUVODY.map(d => <option key={d} value={d} />)}
                 </datalist>
+              </Field>
+
+              <Field label="Hodnocení ★">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="1"
+                  max="5"
+                  value={form.rating}
+                  onChange={e => set('rating', e.target.value)}
+                  placeholder="4.8"
+                  className={inputCls}
+                />
+              </Field>
+
+              <Field label="Počet recenzí">
+                <input
+                  type="number"
+                  min="0"
+                  value={form.reviews_count}
+                  onChange={e => set('reviews_count', e.target.value)}
+                  placeholder="37"
+                  className={inputCls}
+                />
               </Field>
 
               <Field label="Poznámka" col2>

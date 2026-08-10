@@ -93,7 +93,7 @@ function extractRow(line: string): SmartRow {
 type FieldKey =
   | 'nazev' | 'telefon' | 'mesto' | 'adresa'
   | 'web' | 'kategorie' | 'duvod' | 'poznamka'
-  | 'rating' | 'google_maps_url' | ''
+  | 'rating' | 'reviews_count' | 'google_maps_url' | ''
 
 const FIELD_OPTIONS: { value: FieldKey; label: string }[] = [
   { value: '',               label: '— přeskočit —' },
@@ -106,6 +106,7 @@ const FIELD_OPTIONS: { value: FieldKey; label: string }[] = [
   { value: 'duvod',          label: 'Důvod' },
   { value: 'poznamka',       label: 'Poznámka' },
   { value: 'rating',         label: 'Rating' },
+  { value: 'reviews_count',  label: 'Počet recenzí' },
   { value: 'google_maps_url', label: 'Google Maps URL' },
 ]
 
@@ -122,6 +123,22 @@ function dupKey(nazev: string, mesto: string): string {
   return normName(nazev) + '|' + normCity(mesto)
 }
 
+// Maps exports write ratings the Czech way ("4,8") and counts with separators
+// or a trailing word ("1 234 recenzí").
+function parseRating(raw: string): number | null {
+  if (!raw) return null
+  const n = parseFloat(raw.replace(',', '.'))
+  return Number.isFinite(n) ? n : null
+}
+
+function parseCount(raw: string): number | null {
+  if (!raw) return null
+  const digits = raw.replace(/[^\d]/g, '')
+  if (!digits) return null
+  const n = parseInt(digits, 10)
+  return Number.isFinite(n) ? n : null
+}
+
 function autoMap(header: string): FieldKey {
   const n = normStr(header)
   if (/nazev|name|firma|jmeno|nazov|company/.test(n)) return 'nazev'
@@ -132,6 +149,9 @@ function autoMap(header: string): FieldKey {
   if (/kategori|categor|\btyp\b|\btype\b|obor/.test(n)) return 'kategorie'
   if (/duvod|reason|proc\b|popis/.test(n)) return 'duvod'
   if (/poznamka|poznamky|note|notes|koment/.test(n)) return 'poznamka'
+  // Checked before `rating` — "počet hodnocení" / "ratings count" are counts,
+  // and would otherwise be swallowed by the rating pattern below.
+  if (/recenz|review|pocet hodnoceni|ratings? count|user ratings/.test(n)) return 'reviews_count'
   if (/rating|hodnoceni|skore|score|stars/.test(n)) return 'rating'
   if (/google|maps|gm_url|maps_url/.test(n)) return 'google_maps_url'
   return ''
@@ -259,7 +279,8 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
           kategorie:       get('kategorie') || defaultKat || 'neznámá',
           duvod:           get('duvod') || 'Import',
           poznamka:        get('poznamka') || null,
-          rating:          get('rating') ? parseFloat(get('rating')) : null,
+          rating:          parseRating(get('rating')),
+          reviews_count:   parseCount(get('reviews_count')),
           google_maps_url: get('google_maps_url') || `manual:${crypto.randomUUID()}`,
           status:          'novy' as const,
         }
@@ -267,7 +288,13 @@ export default function ImportModal({ onClose, onImported, existingLeads }: Prop
     : []
 
   const readyRows = parsed?.mode === 'smart'
-    ? smartRows.map(r => ({ ...r, poznamka: null as null, rating: null as null, status: 'novy' as const }))
+    ? smartRows.map(r => ({
+        ...r,
+        poznamka: null as null,
+        rating: null as null,
+        reviews_count: null as null,
+        status: 'novy' as const,
+      }))
     : columnRows
 
   // Existing-lead lookup sets

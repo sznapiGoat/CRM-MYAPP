@@ -53,6 +53,7 @@ export interface Lead {
   status:          LeadStatus
   poznamka:        string | null
   rating:          number | null
+  reviews_count?:  number | null
   last_called_at:  string | null
   follow_up_at:    string | null
   next_action?:    string | null

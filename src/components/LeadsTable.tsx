@@ -1,6 +1,7 @@
 'use client'
 
 import { Lead, LeadStatus } from '@/types/lead'
+import { leadScore, scoreColor } from '@/lib/score'
 import type { SortKey, SortState } from './Dashboard'
 import StatusMenu from './StatusMenu'
 
@@ -24,6 +25,7 @@ const COLUMNS: { label: string; key?: SortKey }[] = [
   { label: 'Web' },
   { label: 'Důvod' },
   { label: 'Rating', key: 'rating' },
+  { label: 'Skóre', key: 'score' },
   { label: 'Sledování', key: 'follow_up_at' },
   { label: 'Přidáno', key: 'created_at' },
   { label: 'Poznámka' },
@@ -68,7 +70,7 @@ export default function LeadsTable({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-800">
-      <table className="w-full text-sm min-w-[1060px]">
+      <table className="w-full text-sm min-w-[1140px]">
         <thead>
           <tr className="border-b border-zinc-800 text-zinc-500 text-xs uppercase tracking-wide">
             <th className="px-4 py-3 text-left w-10">
@@ -108,6 +110,7 @@ export default function LeadsTable({
           {leads.map(lead => {
             const due = isDue(lead.follow_up_at)
             const isSelected = selectedIds.has(lead.id)
+            const score = leadScore(lead)
             return (
               <tr
                 key={lead.id}
@@ -174,8 +177,29 @@ export default function LeadsTable({
                   <span title={lead.duvod}>{trunc(lead.duvod, 30)}</span>
                 </td>
 
-                <td className="px-4 py-3 text-zinc-400">
-                  {lead.rating != null ? `★ ${lead.rating}` : '—'}
+                <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
+                  {lead.rating != null ? (
+                    <>
+                      ★ {lead.rating}
+                      {lead.reviews_count != null && (
+                        <span
+                          title={`${lead.reviews_count} recenzí na Google`}
+                          className="text-zinc-600 ml-1"
+                        >
+                          ({lead.reviews_count})
+                        </span>
+                      )}
+                    </>
+                  ) : '—'}
+                </td>
+
+                <td className="px-4 py-3">
+                  <span
+                    title={`Skóre ${score} ze 100 — z důvodu „${lead.duvod}" a hodnocení na Google`}
+                    className={`font-semibold tabular-nums ${scoreColor(score)}`}
+                  >
+                    {score}
+                  </span>
                 </td>
 
                 <td className="px-4 py-3 whitespace-nowrap">

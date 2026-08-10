@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from 'convex/react'
 import Link from 'next/link'
 import * as db from '@/lib/db'
+import { hasWeb, leadScore } from '@/lib/score'
 import { api } from '../../convex/_generated/api'
 import { ActivityInput, Lead, LeadStatus, STATUS_LABELS, STATUS_ORDER } from '@/types/lead'
 import StatsBar from './StatsBar'
@@ -18,8 +19,13 @@ import UndoToast from './UndoToast'
 
 type ViewMode = 'table' | 'kanban'
 
-export type SortKey = 'nazev' | 'mesto' | 'rating' | 'follow_up_at' | 'created_at'
+export type SortKey = 'nazev' | 'mesto' | 'rating' | 'score' | 'follow_up_at' | 'created_at'
 export type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null
+
+// 'ma' = has a website (redesign), 'bez' = none (build from scratch).
+export type WebFilter = 'ma' | 'bez' | null
+// A number is a minimum star rating; 'none' keeps only leads with no rating.
+export type RatingFilter = number | 'none' | null
 
 const stripDia = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
@@ -30,6 +36,8 @@ function sortLeads(list: Lead[], sort: SortState): Lead[] {
     switch (sort.key) {
       case 'rating':
         return ((a.rating ?? -Infinity) - (b.rating ?? -Infinity)) * dir
+      case 'score':
+        return (leadScore(a) - leadScore(b)) * dir
       case 'follow_up_at':
         return (a.follow_up_at ?? '').localeCompare(b.follow_up_at ?? '') * dir
       case 'created_at':
@@ -72,7 +80,9 @@ export default function Dashboard() {
   const [filterStatus, setFilterStatus] = useState<LeadStatus | null>(null)
   const [filterKategorie, setFilterKategorie] = useState<string | null>(null)
   const [filterDuvod, setFilterDuvod] = useState<string | null>(null)
-  const [minRating, setMinRating] = useState<number | null>(null)
+  const [filterWeb, setFilterWeb] = useState<WebFilter>(null)
+  const [minRating, setMinRating] = useState<RatingFilter>(null)
+  const [minReviews, setMinReviews] = useState<number | null>(null)
   const [filterDueToday, setFilterDueToday] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -116,7 +126,9 @@ export default function Dashboard() {
         if ('filterStatus' in p) setFilterStatus(p.filterStatus)
         if ('filterKategorie' in p) setFilterKategorie(p.filterKategorie)
         if ('filterDuvod' in p) setFilterDuvod(p.filterDuvod)
+        if ('filterWeb' in p) setFilterWeb(p.filterWeb)
         if ('minRating' in p) setMinRating(p.minRating)
+        if ('minReviews' in p) setMinReviews(p.minReviews)
         if (typeof p.filterDueToday === 'boolean') setFilterDueToday(p.filterDueToday)
         if ('sort' in p) setSort(p.sort)
         if (typeof p.showFunnel === 'boolean') setShowFunnel(p.showFunnel)
@@ -129,11 +141,11 @@ export default function Dashboard() {
     if (!prefsHydrated.current) return
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify({
-        viewMode, filterStatus, filterKategorie, filterDuvod, minRating,
-        filterDueToday, sort, showFunnel,
+        viewMode, filterStatus, filterKategorie, filterDuvod, filterWeb, minRating,
+        minReviews, filterDueToday, sort, showFunnel,
       }))
     } catch { /* ignore quota errors */ }
-  }, [viewMode, filterStatus, filterKategorie, filterDuvod, minRating, filterDueToday, sort, showFunnel])
+  }, [viewMode, filterStatus, filterKategorie, filterDuvod, filterWeb, minRating, minReviews, filterDueToday, sort, showFunnel])
 
   // Keyboard shortcuts: `/` focus search, `n` new lead, `Esc` close overlays.
   useEffect(() => {
@@ -219,30 +231,26 @@ export default function Dashboard() {
   const kategorien = Array.from(new Set(leads.map(l => l.kategorie))).sort()
   const duvody = Array.from(new Set(leads.map(l => l.duvod).filter(Boolean))).sort()
 
-  // "Zastaralá platforma" — matched loosely because imported rows spell the
-  // reason in several ways ("zastaralý web", "Zastaralá platforma (Wix)", …).
-  const OUTDATED_RE = /zastaral/i
-  const outdatedDuvod = duvody.find(d => OUTDATED_RE.test(d)) ?? 'Zastaralá platforma'
-
   const bestActive =
-    filterDuvod === outdatedDuvod && minRating === 4 &&
-    sort?.key === 'rating' && sort.dir === 'desc'
+    filterWeb === 'ma' && minRating === 4 &&
+    sort?.key === 'score' && sort.dir === 'desc'
 
-  // One click for the highest-value lead: outdated site + strong Google rating,
-  // best-rated first.
+  // One click for the easiest cold call: an existing site to redesign plus a
+  // solid Google rating, highest score first.
   const handleBestLeads = useCallback(() => {
     if (bestActive) {
-      setFilterDuvod(null)
+      setFilterWeb(null)
       setMinRating(null)
       setSort(null)
       return
     }
-    setFilterDuvod(outdatedDuvod)
+    setFilterWeb('ma')
     setMinRating(4)
+    setFilterDuvod(null)
     setFilterStatus(null)
     setFilterDueToday(false)
-    setSort({ key: 'rating', dir: 'desc' })
-  }, [bestActive, outdatedDuvod])
+    setSort({ key: 'score', dir: 'desc' })
+  }, [bestActive])
 
   const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
@@ -251,7 +259,11 @@ export default function Dashboard() {
     if (filterStatus && lead.status !== filterStatus) return false
     if (filterKategorie && lead.kategorie !== filterKategorie) return false
     if (filterDuvod && lead.duvod !== filterDuvod) return false
-    if (minRating !== null && (lead.rating ?? -1) < minRating) return false
+    if (filterWeb === 'ma'  && !hasWeb(lead)) return false
+    if (filterWeb === 'bez' &&  hasWeb(lead)) return false
+    if (minRating === 'none' && lead.rating != null) return false
+    if (typeof minRating === 'number' && (lead.rating ?? -1) < minRating) return false
+    if (minReviews !== null && (lead.reviews_count ?? -1) < minReviews) return false
     if (filterDueToday) {
       if (!lead.follow_up_at) return false
       const d = new Date(lead.follow_up_at)
@@ -344,11 +356,12 @@ export default function Dashboard() {
   }, [selectedIds, leads, showUndo])
 
   function exportLeadsCSV(leadsToExport: typeof leads) {
-    const headers = ['Název','Město','Telefon','Adresa','Web','Kategorie','Status','Důvod','Poznámka','Rating','Vytvořeno','Zavoláno','Sledování','Další krok']
+    const headers = ['Název','Město','Telefon','Adresa','Web','Kategorie','Status','Důvod','Poznámka','Rating','Recenzí','Skóre','Vytvořeno','Zavoláno','Sledování','Další krok']
     const rows = leadsToExport.map(l => [
       l.nazev, l.mesto, l.telefon, l.adresa, l.web ?? '',
       l.kategorie, STATUS_LABELS[l.status], l.duvod, l.poznamka ?? '',
-      l.rating ?? '', l.created_at, l.last_called_at ?? '', l.follow_up_at ?? '',
+      l.rating ?? '', l.reviews_count ?? '', leadScore(l),
+      l.created_at, l.last_called_at ?? '', l.follow_up_at ?? '',
       l.next_action ?? '',
     ])
     const csv = [headers, ...rows]
@@ -551,8 +564,12 @@ export default function Dashboard() {
           setFilterKategorie={setFilterKategorie}
           filterDuvod={filterDuvod}
           setFilterDuvod={setFilterDuvod}
+          filterWeb={filterWeb}
+          setFilterWeb={setFilterWeb}
           minRating={minRating}
           setMinRating={setMinRating}
+          minReviews={minReviews}
+          setMinReviews={setMinReviews}
           filterDueToday={filterDueToday}
           setFilterDueToday={setFilterDueToday}
           searchQuery={searchQuery}

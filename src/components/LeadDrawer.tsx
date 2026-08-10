@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ActivityInput, Lead, LeadStatus, STATUS_COLORS, STATUS_LABELS, STATUS_ORDER } from '@/types/lead'
+import { leadScore, scoreColor } from '@/lib/score'
 import ActivityLog from './ActivityLog'
 
 interface Props {
@@ -358,8 +359,20 @@ export default function LeadDrawer({ lead, onClose, onUpdate, onMarkAsCalled }: 
                       <span className="text-zinc-300">{lead.adresa}</span>
                     </Row>
                     {lead.rating != null && (
-                      <Row label="Rating"><span className="text-zinc-300">★ {lead.rating}</span></Row>
+                      <Row label="Rating">
+                        <span className="text-zinc-300">
+                          ★ {lead.rating}
+                          {lead.reviews_count != null && (
+                            <span className="text-zinc-500"> · {lead.reviews_count} recenzí</span>
+                          )}
+                        </span>
+                      </Row>
                     )}
+                    <Row label="Skóre">
+                      <span className={`font-semibold ${scoreColor(leadScore(lead))}`}>
+                        {leadScore(lead)} / 100
+                      </span>
+                    </Row>
                   </dl>
                 )}
               </section>

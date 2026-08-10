@@ -1,6 +1,7 @@
 'use client'
 
 import { LeadStatus, STATUS_COLORS, STATUS_LABELS, STATUS_ORDER } from '@/types/lead'
+import type { RatingFilter, WebFilter } from './Dashboard'
 
 interface Props {
   filterStatus: LeadStatus | null
@@ -9,8 +10,12 @@ interface Props {
   setFilterKategorie: (k: string | null) => void
   filterDuvod: string | null
   setFilterDuvod: (d: string | null) => void
-  minRating: number | null
-  setMinRating: (r: number | null) => void
+  filterWeb: WebFilter
+  setFilterWeb: (w: WebFilter) => void
+  minRating: RatingFilter
+  setMinRating: (r: RatingFilter) => void
+  minReviews: number | null
+  setMinReviews: (n: number | null) => void
   filterDueToday: boolean
   setFilterDueToday: (v: boolean) => void
   searchQuery: string
@@ -28,8 +33,12 @@ export default function FilterBar({
   setFilterKategorie,
   filterDuvod,
   setFilterDuvod,
+  filterWeb,
+  setFilterWeb,
   minRating,
   setMinRating,
+  minReviews,
+  setMinReviews,
   filterDueToday,
   setFilterDueToday,
   searchQuery,
@@ -71,9 +80,22 @@ export default function FilterBar({
           ))}
         </select>
         <select
-          value={minRating ?? ''}
-          onChange={e => setMinRating(e.target.value ? Number(e.target.value) : null)}
-          title="Minimální hodnocení na Google"
+          value={filterWeb ?? ''}
+          onChange={e => setFilterWeb((e.target.value || null) as WebFilter)}
+          title="Má lead existující web (redesign), nebo se dělá od nuly?"
+          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-zinc-600 transition-colors"
+        >
+          <option value="">Web: vše</option>
+          <option value="ma">Má web (redesign)</option>
+          <option value="bez">Bez webu (od nuly)</option>
+        </select>
+        <select
+          value={minRating === null ? '' : String(minRating)}
+          onChange={e => {
+            const v = e.target.value
+            setMinRating(v === '' ? null : v === 'none' ? 'none' : Number(v))
+          }}
+          title="Hodnocení na Google"
           className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-zinc-600 transition-colors"
         >
           <option value="">Hodnocení: vše</option>
@@ -81,10 +103,23 @@ export default function FilterBar({
           <option value="4">★ 4,0+</option>
           <option value="3.5">★ 3,5+</option>
           <option value="3">★ 3,0+</option>
+          <option value="none">Bez hodnocení</option>
+        </select>
+        <select
+          value={minReviews ?? ''}
+          onChange={e => setMinReviews(e.target.value ? Number(e.target.value) : null)}
+          title="Minimální počet recenzí na Google"
+          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-zinc-600 transition-colors"
+        >
+          <option value="">Recenzí: vše</option>
+          <option value="50">50+ recenzí</option>
+          <option value="20">20+ recenzí</option>
+          <option value="10">10+ recenzí</option>
+          <option value="1">Aspoň 1 recenze</option>
         </select>
         <button
           onClick={onBestLeads}
-          title="Zastaralá platforma s nejlepším hodnocením na Google, seřazeno od nejvíc hvězdiček"
+          title="Leady s existujícím webem na redesign a dobrým hodnocením na Google, seřazeno podle skóre"
           className={`px-3 py-2 rounded text-xs font-medium transition-colors whitespace-nowrap ${
             bestActive
               ? 'bg-indigo-900/60 text-indigo-200 border border-indigo-600'
