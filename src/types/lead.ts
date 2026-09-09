@@ -54,6 +54,8 @@ export interface Lead {
   poznamka:        string | null
   rating:          number | null
   reviews_count?:  number | null
+  priority_score?: number | null
+  platform_tag?:   string | null
   last_called_at:  string | null
   follow_up_at:    string | null
   next_action?:    string | null

@@ -22,6 +22,14 @@ export default defineSchema({
     // Number of Google reviews behind `rating`. Optional: rows imported before
     // this field existed simply don't have it.
     reviews_count: v.optional(v.union(v.number(), v.null())),
+    // Outreach priority computed by the n8n lead-gen workflow from the website
+    // URL: 2 = runs on an outdated site builder, 1 = no website at all.
+    // (custom_domain leads score 0 and are never sent here.) Optional — rows
+    // imported before the scoring step exist without it.
+    priority_score: v.optional(v.union(v.number(), v.null())),
+    // Which builder the site runs on, e.g. 'webnode' / 'estranky'. null when
+    // the lead has no website.
+    platform_tag: v.optional(v.union(v.string(), v.null())),
     last_called_at: v.union(v.string(), v.null()),
     follow_up_at: v.union(v.string(), v.null()),
     next_action: v.optional(v.union(v.string(), v.null())),
