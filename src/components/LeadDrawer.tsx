@@ -1,6 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useQuery } from 'convex/react'
+import { api } from '../../convex/_generated/api'
+import type { Id } from '../../convex/_generated/dataModel'
+import * as db from '@/lib/db'
 import { ActivityInput, Lead, LeadStatus, STATUS_COLORS, STATUS_LABELS, STATUS_ORDER } from '@/types/lead'
 import { leadScore, scoreColor } from '@/lib/score'
 import ActivityLog from './ActivityLog'
@@ -313,6 +318,8 @@ export default function LeadDrawer({ lead, onClose, onUpdate, onMarkAsCalled }: 
                 </div>
               </section>
 
+              <ClientLink leadId={lead.id} />
+
               {/* Follow-up */}
               <section>
                 <label className="block text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Sledování</label>
@@ -525,5 +532,40 @@ function EditRow({ label, children }: { label: string; children: React.ReactNode
       <dt className="w-20 shrink-0 text-xs text-zinc-500">{label}</dt>
       <dd className="flex-1">{children}</dd>
     </div>
+  )
+}
+
+// Closed lead -> client. Shows a link once the lead has been converted.
+function ClientLink({ leadId }: { leadId: string }) {
+  const client = useQuery(api.clients.byLead, { lead_id: leadId as Id<'leads'> })
+  const [busy, setBusy] = useState(false)
+  if (client === undefined) return null
+
+  if (client) {
+    return (
+      <section>
+        <Link
+          href={`/klienti?client=${client.id}`}
+          className="inline-block text-xs text-green-300 hover:text-green-200 border border-green-900 rounded px-3 py-1.5 transition-colors"
+        >
+          Klient: {client.nazev}
+        </Link>
+      </section>
+    )
+  }
+
+  return (
+    <section>
+      <button
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true)
+          try { await db.convertLeadToClient(leadId) } finally { setBusy(false) }
+        }}
+        className="text-xs text-zinc-300 hover:text-zinc-100 border border-zinc-700 hover:border-zinc-500 rounded px-3 py-1.5 transition-colors disabled:opacity-40"
+      >
+        Převést na klienta
+      </button>
+    </section>
   )
 }

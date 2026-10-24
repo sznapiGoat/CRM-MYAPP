@@ -3,6 +3,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import type { Lead, LeadActivity, ActivityInput } from '@/types/lead'
 import type { Note } from '@/types/note'
+import type { ClientActivity, ClientInput, ProjectInput, SubscriptionInput } from '@/types/client'
 
 // Thin data-access layer over Convex. Replaces the old Supabase query chains.
 // Convex document ids are strings; components treat lead/note ids as plain
@@ -86,4 +87,59 @@ export async function updateNote(
 
 export async function deleteNote(id: string): Promise<void> {
   await convex.mutation(api.notes.remove, { id: noteId(id) })
+}
+
+// ---- Clients --------------------------------------------------------------
+
+const clientId = (id: string) => id as Id<'clients'>
+
+export async function createClient(fields: ClientInput): Promise<string> {
+  return await convex.mutation(api.clients.create, {
+    fields: { ...fields, lead_id: fields.lead_id as Id<'leads'> | null },
+  })
+}
+
+export async function updateClient(id: string, updates: Partial<ClientInput>): Promise<void> {
+  const { lead_id: _ignored, ...rest } = updates
+  await convex.mutation(api.clients.update, { id: clientId(id), updates: rest })
+}
+
+export async function deleteClient(id: string): Promise<void> {
+  await convex.mutation(api.clients.remove, { id: clientId(id) })
+}
+
+export async function convertLeadToClient(leadIdStr: string): Promise<string> {
+  return await convex.mutation(api.clients.convertLead, { lead_id: leadId(leadIdStr) })
+}
+
+export async function addProject(clientIdStr: string, fields: ProjectInput): Promise<void> {
+  await convex.mutation(api.clients.addProject, { client_id: clientId(clientIdStr), fields })
+}
+
+export async function updateProject(id: string, updates: Partial<ProjectInput>): Promise<void> {
+  await convex.mutation(api.clients.updateProject, { id: id as Id<'projects'>, updates })
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await convex.mutation(api.clients.removeProject, { id: id as Id<'projects'> })
+}
+
+export async function addSubscription(clientIdStr: string, fields: SubscriptionInput): Promise<void> {
+  await convex.mutation(api.clients.addSubscription, { client_id: clientId(clientIdStr), fields })
+}
+
+export async function updateSubscription(id: string, updates: Partial<SubscriptionInput>): Promise<void> {
+  await convex.mutation(api.clients.updateSubscription, { id: id as Id<'subscriptions'>, updates })
+}
+
+export async function deleteSubscription(id: string): Promise<void> {
+  await convex.mutation(api.clients.removeSubscription, { id: id as Id<'subscriptions'> })
+}
+
+export async function addClientActivity(
+  clientIdStr: string,
+  type: ClientActivity['type'],
+  note: string | null,
+): Promise<void> {
+  await convex.mutation(api.clients.addActivity, { client_id: clientId(clientIdStr), type, note })
 }

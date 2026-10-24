@@ -44,6 +44,70 @@ export default defineSchema({
     new_status: v.union(v.string(), v.null()),
   }).index('by_lead', ['lead_id']),
 
+  // Paying clients. A lead converts into a client once it closes; clients that
+  // came from referrals (no lead in the CRM) have lead_id null.
+  clients: defineTable({
+    created_at: v.string(),
+    updated_at: v.string(),
+    lead_id: v.union(v.id('leads'), v.null()),
+    nazev: v.string(),
+    kontakt_jmeno: v.union(v.string(), v.null()),
+    telefon: v.string(),
+    email: v.union(v.string(), v.null()),
+    ico: v.union(v.string(), v.null()),
+    mesto: v.string(),
+    kategorie: v.string(),
+    zdroj: v.string(), // 'cold_call' | 'doporuceni' | 'upwork' | 'jine'
+    status: v.string(), // 'aktivni' | 'pozastaveny' | 'ukonceny'
+    poznamka: v.union(v.string(), v.null()),
+  })
+    .index('by_lead_id', ['lead_id'])
+    .index('by_status', ['status']),
+
+  // One-off work for a client (web, redesign, SK version…).
+  projects: defineTable({
+    created_at: v.string(),
+    updated_at: v.string(),
+    client_id: v.id('clients'),
+    nazev: v.string(),
+    typ: v.string(), // 'web' | 'redesign' | 'jine'
+    stav: v.string(), // 'nabidka' | 'rozpracovano' | 'predano' | 'zaplaceno'
+    cena: v.number(), // whole CZK
+    nabidka_at: v.union(v.string(), v.null()),
+    spusteno_at: v.union(v.string(), v.null()),
+    zaplaceno_at: v.union(v.string(), v.null()),
+    domena: v.union(v.string(), v.null()),
+    domena_obnova_at: v.union(v.string(), v.null()),
+    vercel_projekt: v.union(v.string(), v.null()),
+    github_repo: v.union(v.string(), v.null()),
+    poznamka: v.union(v.string(), v.null()),
+  })
+    .index('by_client_id', ['client_id'])
+    .index('by_stav', ['stav']),
+
+  // Recurring monthly services. MRR = sum of cena_mesicne over active rows.
+  subscriptions: defineTable({
+    created_at: v.string(),
+    updated_at: v.string(),
+    client_id: v.id('clients'),
+    typ: v.string(), // 'sprava' | 'seo' | 'ads' | 'jine'
+    cena_mesicne: v.number(), // whole CZK
+    fakturace: v.string(), // 'mesicne' | 'rocne'
+    od: v.string(),
+    do: v.union(v.string(), v.null()), // null = still running
+    stav: v.string(), // 'aktivni' | 'pozastaveno' | 'ukonceno'
+    poznamka: v.union(v.string(), v.null()),
+  })
+    .index('by_client_id', ['client_id'])
+    .index('by_stav', ['stav']),
+
+  client_activities: defineTable({
+    created_at: v.string(),
+    client_id: v.id('clients'),
+    type: v.string(), // 'call' | 'email' | 'note'
+    note: v.union(v.string(), v.null()),
+  }).index('by_client_id', ['client_id']),
+
   notes: defineTable({
     created_at: v.string(),
     updated_at: v.string(),
