@@ -56,6 +56,8 @@ export interface Lead {
   reviews_count?:  number | null
   priority_score?: number | null
   platform_tag?:   string | null
+  email?:          string | null
+  icp_score?:      number | null
   last_called_at:  string | null
   follow_up_at:    string | null
   next_action?:    string | null

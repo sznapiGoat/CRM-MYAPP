@@ -30,6 +30,12 @@ export default defineSchema({
     // Which builder the site runs on, e.g. 'webnode' / 'estranky'. null when
     // the lead has no website.
     platform_tag: v.optional(v.union(v.string(), v.null())),
+    // Public business e-mail found on the website (contact page or footer).
+    // Filled by the /leads skill; null when nothing public was found.
+    email: v.optional(v.union(v.string(), v.null())),
+    // Fit against the ideal customer profile, 0-10, from the /leads skill.
+    // Independent of priority_score (which only looks at the website).
+    icp_score: v.optional(v.union(v.number(), v.null())),
     last_called_at: v.union(v.string(), v.null()),
     follow_up_at: v.union(v.string(), v.null()),
     next_action: v.optional(v.union(v.string(), v.null())),

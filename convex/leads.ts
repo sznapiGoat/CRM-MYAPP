@@ -108,6 +108,8 @@ export const upsert = mutation({
         reviews_count: row.reviews_count ?? null,
         priority_score: row.priority_score ?? null,
         platform_tag: row.platform_tag ?? null,
+        email: row.email ?? null,
+        icp_score: row.icp_score ?? null,
         last_called_at: row.last_called_at ?? null,
         follow_up_at: row.follow_up_at ?? null,
         next_action: row.next_action ?? null,
