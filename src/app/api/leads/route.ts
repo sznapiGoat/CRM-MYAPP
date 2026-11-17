@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
 // only write the scoring fields, and Grok boti only their research and draft
 // fields, never the sales columns a human owns (status, poznámka, termíny).
 const BOT_FIELDS = [
-  'icp_score', 'email', 'jednatel', 'problem_webu', 'zdroje',
+  'icp_score', 'email', 'jednatel', 'kategorie', 'problem_webu', 'zdroje',
   'email_predmet', 'email_text', 'telefon_osnova', 'kontrola',
 ] as const
 
