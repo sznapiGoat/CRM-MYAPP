@@ -1,4 +1,5 @@
 export type LeadStatus =
+  | 'k_schvaleni'
   | 'novy'
   | 'zavolano'
   | 'zajem'
@@ -8,6 +9,7 @@ export type LeadStatus =
   | 'nezajem'
 
 export const STATUS_ORDER: LeadStatus[] = [
+  'k_schvaleni',
   'novy',
   'zavolano',
   'zajem',
@@ -18,6 +20,7 @@ export const STATUS_ORDER: LeadStatus[] = [
 ]
 
 export const STATUS_LABELS: Record<LeadStatus, string> = {
+  k_schvaleni:  'K schválení',
   novy:         'Nový',
   zavolano:     'Zavoláno',
   zajem:        'Zájem',
@@ -29,6 +32,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
 
 // Full class strings — must be complete for Tailwind to detect them
 export const STATUS_COLORS: Record<LeadStatus, string> = {
+  k_schvaleni:  'bg-teal-900 text-teal-200',
   novy:         'bg-zinc-700 text-zinc-200',
   zavolano:     'bg-blue-900 text-blue-200',
   zajem:        'bg-yellow-900 text-yellow-200',
@@ -61,6 +65,16 @@ export interface Lead {
   last_called_at:  string | null
   follow_up_at:    string | null
   next_action?:    string | null
+  // Dráha B (firmy z ARES, plní Grok boti). Volitelné, starší leady je nemají.
+  ico?:            string | null
+  jednatel?:       string | null
+  draha?:          string | null
+  problem_webu?:   string | null
+  zdroje?:         string | null
+  email_predmet?:  string | null
+  email_text?:     string | null
+  telefon_osnova?: string | null
+  kontrola?:       string | null
 }
 
 export interface LeadActivity {

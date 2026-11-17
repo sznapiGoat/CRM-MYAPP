@@ -39,6 +39,17 @@ export default defineSchema({
     last_called_at: v.union(v.string(), v.null()),
     follow_up_at: v.union(v.string(), v.null()),
     next_action: v.optional(v.union(v.string(), v.null())),
+    // Dráha B: firmy z ARES, které zakládají a doplňují Grok boti přes
+    // /api/leads. Takové leady nemají Google Maps URL, klíč je `ico:<IČO>`.
+    ico: v.optional(v.union(v.string(), v.null())),
+    jednatel: v.optional(v.union(v.string(), v.null())),
+    draha: v.optional(v.union(v.string(), v.null())), // 'A' | 'B'
+    problem_webu: v.optional(v.union(v.string(), v.null())),
+    zdroje: v.optional(v.union(v.string(), v.null())),
+    email_predmet: v.optional(v.union(v.string(), v.null())),
+    email_text: v.optional(v.union(v.string(), v.null())),
+    telefon_osnova: v.optional(v.union(v.string(), v.null())),
+    kontrola: v.optional(v.union(v.string(), v.null())),
   }).index('by_google_maps_url', ['google_maps_url']),
 
   lead_activities: defineTable({

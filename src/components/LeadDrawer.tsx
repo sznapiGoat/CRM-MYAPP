@@ -174,6 +174,13 @@ export default function LeadDrawer({ lead, onClose, onUpdate, onMarkAsCalled }: 
   }
 
   function openEmail() {
+    // Koncept od Grok botů (dráha B) má přednost před obecnou šablonou.
+    if (lead.email_text) {
+      setEmailSubject(lead.email_predmet ?? '')
+      setEmailBody(lead.email_text)
+      setShowEmail(true)
+      return
+    }
     const subject = `Nabídka webové prezentace — ${lead.nazev}`
     const body = lead.web
       ? `Dobrý den,\n\nrád bych Vám nabídl vytvoření moderní webové prezentace pro ${lead.nazev} v ${lead.mesto}.\n\nNavštívil jsem Váš aktuální web a věřím, že s profesionálním redesignem by přinesl výrazně více zákazníků.\n\nRád Vám zdarma připravím ukázkový návrh bez jakýchkoli závazků.\n\nS pozdravem,`
@@ -184,7 +191,7 @@ export default function LeadDrawer({ lead, onClose, onUpdate, onMarkAsCalled }: 
   }
 
   function openMailto() {
-    window.open(`mailto:?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`)
+    window.open(`mailto:${lead.email ?? ''}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`)
   }
 
   async function copyEmail() {
@@ -359,9 +366,16 @@ export default function LeadDrawer({ lead, onClose, onUpdate, onMarkAsCalled }: 
                         <a href={lead.web} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors truncate block max-w-[280px]">{lead.web}</a>
                       </Row>
                     )}
-                    <Row label="Maps">
-                      <a href={lead.google_maps_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">Otevřít Google Maps ↗</a>
-                    </Row>
+                    {lead.email && (
+                      <Row label="E-mail">
+                        <a href={`mailto:${lead.email}`} className="text-blue-400 hover:text-blue-300 transition-colors">{lead.email}</a>
+                      </Row>
+                    )}
+                    {lead.google_maps_url.startsWith('http') && (
+                      <Row label="Maps">
+                        <a href={lead.google_maps_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">Otevřít Google Maps ↗</a>
+                      </Row>
+                    )}
                     <Row label="Adresa">
                       <span className="text-zinc-300">{lead.adresa}</span>
                     </Row>
@@ -383,6 +397,30 @@ export default function LeadDrawer({ lead, onClose, onUpdate, onMarkAsCalled }: 
                   </dl>
                 )}
               </section>
+
+              {/* Dráha B: podklady od Grok botů */}
+              {lead.draha === 'B' && (
+                <section>
+                  <label className="block text-[10px] text-zinc-500 uppercase tracking-widest mb-3">Dráha B</label>
+                  <dl className="space-y-2.5">
+                    {lead.ico && (
+                      <Row label="IČO">
+                        <a href={`https://ares.gov.cz/ekonomicke-subjekty?ico=${lead.ico}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">{lead.ico} ↗</a>
+                      </Row>
+                    )}
+                    {lead.jednatel && <Row label="Jednatel"><span className="text-zinc-300">{lead.jednatel}</span></Row>}
+                    {lead.icp_score != null && <Row label="Skóre B"><span className="text-zinc-300">{lead.icp_score} / 10</span></Row>}
+                    {lead.problem_webu && <Row label="Problém"><span className="text-zinc-300">{lead.problem_webu}</span></Row>}
+                    {lead.kontrola && <Row label="Kontrola"><span className="text-zinc-300">{lead.kontrola}</span></Row>}
+                  </dl>
+                  {lead.telefon_osnova && (
+                    <p className="mt-3 text-xs text-zinc-400 whitespace-pre-line leading-relaxed">{lead.telefon_osnova}</p>
+                  )}
+                  {lead.zdroje && (
+                    <p className="mt-3 text-[11px] text-zinc-500 whitespace-pre-line break-all">{lead.zdroje}</p>
+                  )}
+                </section>
+              )}
 
               {/* Info */}
               <section>

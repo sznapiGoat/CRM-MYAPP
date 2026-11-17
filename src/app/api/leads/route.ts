@@ -29,9 +29,9 @@ export async function POST(req: NextRequest) {
       body = JSON.parse(body)
     }
 
-    if (!body || typeof body !== 'object' || !body.google_maps_url) {
+    if (!body || typeof body !== 'object' || (!body.google_maps_url && !body.ico)) {
       return NextResponse.json(
-        { error: 'google_maps_url is required' },
+        { error: 'google_maps_url or ico is required' },
         { status: 400, headers: JSON_HEADERS }
       )
     }
@@ -55,6 +55,8 @@ export async function POST(req: NextRequest) {
 // Read leads back out — used by the n8n backfill workflow, which needs the
 // rows the scoring step never saw. `?missing_priority=1` narrows the response
 // to exactly those, so the workflow doesn't page through the whole CRM.
+// Grok boti: `?draha=B` jen dráha B, `?status=k_schvaleni` jeden stav,
+// `?due=1` follow-up dnes nebo po termínu (ranní „kdo čeká na koho“).
 export async function GET(req: NextRequest) {
   const url = convexUrl()
   if (!url) return missingConvexUrl()
@@ -62,16 +64,31 @@ export async function GET(req: NextRequest) {
   const convex = new ConvexHttpClient(url)
   const leads = await convex.query(api.leads.list, {})
 
-  const onlyMissing = req.nextUrl.searchParams.get('missing_priority') === '1'
-  const rows = onlyMissing
-    ? leads.filter((l) => l.priority_score == null)
-    : leads
+  const params = req.nextUrl.searchParams
+  const draha = params.get('draha')
+  const status = params.get('status')
+  const todayEnd = new Date()
+  todayEnd.setHours(23, 59, 59, 999)
+
+  const rows = leads.filter((l) => {
+    if (params.get('missing_priority') === '1' && l.priority_score != null) return false
+    if (draha && l.draha !== draha) return false
+    if (status && l.status !== status) return false
+    if (params.get('due') === '1' && !(l.follow_up_at && new Date(l.follow_up_at) <= todayEnd)) return false
+    return true
+  })
 
   return NextResponse.json({ count: rows.length, leads: rows }, { headers: JSON_HEADERS })
 }
 
 // Patch a single lead by id. Deliberately narrow: the backfill workflow may
-// only write the scoring fields, never the sales columns a human owns.
+// only write the scoring fields, and Grok boti only their research and draft
+// fields, never the sales columns a human owns (status, poznámka, termíny).
+const BOT_FIELDS = [
+  'icp_score', 'email', 'jednatel', 'problem_webu', 'zdroje',
+  'email_predmet', 'email_text', 'telefon_osnova', 'kontrola',
+] as const
+
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
@@ -86,6 +103,7 @@ export async function PATCH(req: NextRequest) {
     if ('priority_score' in body) updates.priority_score = body.priority_score ?? null
     if ('platform_tag' in body) updates.platform_tag = body.platform_tag ?? null
     if (typeof body.duvod === 'string') updates.duvod = body.duvod
+    for (const f of BOT_FIELDS) if (f in body) updates[f] = body[f] ?? null
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(

@@ -9,6 +9,7 @@ interface Props {
 const FUNNEL_STAGES: LeadStatus[] = ['novy', 'zavolano', 'zajem', 'demo_poslano', 'ceka', 'zavreno']
 
 const STAGE_COLORS: Record<LeadStatus, string> = {
+  k_schvaleni:  'bg-teal-700',
   novy:         'bg-zinc-500',
   zavolano:     'bg-blue-600',
   zajem:        'bg-yellow-600',

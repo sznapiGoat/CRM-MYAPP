@@ -28,6 +28,17 @@ const leadUpdate = v.object({
   last_called_at: v.optional(v.union(v.string(), v.null())),
   follow_up_at: v.optional(v.union(v.string(), v.null())),
   next_action: v.optional(v.union(v.string(), v.null())),
+  email: v.optional(v.union(v.string(), v.null())),
+  icp_score: v.optional(v.union(v.number(), v.null())),
+  ico: v.optional(v.union(v.string(), v.null())),
+  jednatel: v.optional(v.union(v.string(), v.null())),
+  draha: v.optional(v.union(v.string(), v.null())),
+  problem_webu: v.optional(v.union(v.string(), v.null())),
+  zdroje: v.optional(v.union(v.string(), v.null())),
+  email_predmet: v.optional(v.union(v.string(), v.null())),
+  email_text: v.optional(v.union(v.string(), v.null())),
+  telefon_osnova: v.optional(v.union(v.string(), v.null())),
+  kontrola: v.optional(v.union(v.string(), v.null())),
 })
 
 export const list = query({
@@ -76,13 +87,19 @@ export const bulkDelete = mutation({
 // Upsert-by-google_maps_url with ignoreDuplicates semantics (matches the old
 // Supabase .upsert({ onConflict: 'google_maps_url', ignoreDuplicates: true })).
 // Accepts partial rows (import/webhook) and fills required fields with defaults.
+// Rows without a Maps URL but with an IČO (dráha B) are keyed as `ico:<IČO>`,
+// the same way manual leads use `manual:<uuid>`.
 export const upsert = mutation({
   args: { rows: v.array(v.any()) },
   handler: async (ctx, { rows }) => {
     let inserted = 0
     for (const row of rows) {
-      const gmurl = row.google_maps_url
-      if (!gmurl || typeof gmurl !== 'string') continue
+      const ico = typeof row.ico === 'string' ? row.ico.replace(/\s/g, '') : null
+      const gmurl =
+        typeof row.google_maps_url === 'string' && row.google_maps_url
+          ? row.google_maps_url
+          : ico ? `ico:${ico}` : null
+      if (!gmurl) continue
 
       const existing = await ctx.db
         .query('leads')
@@ -113,6 +130,15 @@ export const upsert = mutation({
         last_called_at: row.last_called_at ?? null,
         follow_up_at: row.follow_up_at ?? null,
         next_action: row.next_action ?? null,
+        ico,
+        jednatel: row.jednatel ?? null,
+        draha: row.draha ?? null,
+        problem_webu: row.problem_webu ?? null,
+        zdroje: row.zdroje ?? null,
+        email_predmet: row.email_predmet ?? null,
+        email_text: row.email_text ?? null,
+        telefon_osnova: row.telefon_osnova ?? null,
+        kontrola: row.kontrola ?? null,
       })
       inserted++
     }
