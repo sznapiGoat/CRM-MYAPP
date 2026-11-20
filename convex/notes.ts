@@ -1,4 +1,4 @@
-import { query, mutation } from './_generated/server'
+import { crmQuery, crmMutation } from './auth'
 import { v } from 'convex/values'
 import { Doc } from './_generated/dataModel'
 
@@ -14,7 +14,7 @@ const noteUpdate = v.object({
   pinned: v.optional(v.boolean()),
 })
 
-export const list = query({
+export const list = crmQuery({
   args: {},
   handler: async (ctx) => {
     const docs = await ctx.db.query('notes').collect()
@@ -27,7 +27,7 @@ export const list = query({
   },
 })
 
-export const create = mutation({
+export const create = crmMutation({
   args: {},
   handler: async (ctx) => {
     const now = new Date().toISOString()
@@ -44,7 +44,7 @@ export const create = mutation({
   },
 })
 
-export const update = mutation({
+export const update = crmMutation({
   args: { id: v.id('notes'), updates: noteUpdate },
   handler: async (ctx, { id, updates }) => {
     await ctx.db.patch(id, { ...updates, updated_at: new Date().toISOString() })
@@ -53,7 +53,7 @@ export const update = mutation({
   },
 })
 
-export const remove = mutation({
+export const remove = crmMutation({
   args: { id: v.id('notes') },
   handler: async (ctx, { id }) => {
     await ctx.db.delete(id)

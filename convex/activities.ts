@@ -1,4 +1,4 @@
-import { query, mutation } from './_generated/server'
+import { crmQuery, crmMutation } from './auth'
 import { v } from 'convex/values'
 import { Doc } from './_generated/dataModel'
 
@@ -7,7 +7,7 @@ function toActivity(doc: Doc<'lead_activities'>) {
   return { id: _id, ...rest }
 }
 
-export const listByLead = query({
+export const listByLead = crmQuery({
   args: { lead_id: v.id('leads') },
   handler: async (ctx, { lead_id }) => {
     const docs = await ctx.db
@@ -19,7 +19,7 @@ export const listByLead = query({
   },
 })
 
-export const insert = mutation({
+export const insert = crmMutation({
   args: {
     lead_id: v.id('leads'),
     type: v.string(),
@@ -50,7 +50,7 @@ function weekStart(iso: string): string {
 // Sales funnel per week, derived from the activity log: how many leads were
 // reached, how many showed interest, got a demo, and closed. Counts distinct
 // leads per week so re-clicking a status does not inflate the numbers.
-export const weeklyStats = query({
+export const weeklyStats = crmQuery({
   args: { weeks: v.number() },
   handler: async (ctx, { weeks }) => {
     const since = new Date()

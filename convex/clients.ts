@@ -1,4 +1,4 @@
-import { query, mutation } from './_generated/server'
+import { crmQuery, crmMutation } from './auth'
 import { v } from 'convex/values'
 
 // Strip Convex system fields into the app-facing shape (id + string timestamps),
@@ -92,7 +92,7 @@ const subscriptionUpdate = v.object({
 
 // Everything the client page needs in one reactive subscription. The tables
 // stay small (tens of rows), so a full read is cheaper than per-client queries.
-export const overview = query({
+export const overview = crmQuery({
   args: {},
   handler: async (ctx) => {
     const clients = await ctx.db.query('clients').collect()
@@ -107,7 +107,7 @@ export const overview = query({
   },
 })
 
-export const byLead = query({
+export const byLead = crmQuery({
   args: { lead_id: v.id('leads') },
   handler: async (ctx, { lead_id }) => {
     const doc = await ctx.db
@@ -118,7 +118,7 @@ export const byLead = query({
   },
 })
 
-export const activities = query({
+export const activities = crmQuery({
   args: { client_id: v.id('clients') },
   handler: async (ctx, { client_id }) => {
     const docs = await ctx.db
@@ -132,7 +132,7 @@ export const activities = query({
 
 // ---- Clients --------------------------------------------------------------
 
-export const create = mutation({
+export const create = crmMutation({
   args: { fields: v.object({ ...clientFields, lead_id: v.union(v.id('leads'), v.null()) }) },
   handler: async (ctx, { fields }) => {
     const now = new Date().toISOString()
@@ -140,14 +140,14 @@ export const create = mutation({
   },
 })
 
-export const update = mutation({
+export const update = crmMutation({
   args: { id: v.id('clients'), updates: clientUpdate },
   handler: async (ctx, { id, updates }) => {
     await ctx.db.patch(id, { ...updates, updated_at: new Date().toISOString() })
   },
 })
 
-export const remove = mutation({
+export const remove = crmMutation({
   args: { id: v.id('clients') },
   handler: async (ctx, { id }) => {
     // Cascade: projects, subscriptions and history belong to the client.
@@ -165,7 +165,7 @@ export const remove = mutation({
 // Turn a closed lead into a client. Idempotent: a lead converts at most once,
 // a second call returns the existing client. Also moves the lead to 'zavreno'
 // and logs the status change so the weekly numbers count the deal.
-export const convertLead = mutation({
+export const convertLead = crmMutation({
   args: { lead_id: v.id('leads') },
   handler: async (ctx, { lead_id }) => {
     const existing = await ctx.db
@@ -211,7 +211,7 @@ export const convertLead = mutation({
 
 // ---- Projects -------------------------------------------------------------
 
-export const addProject = mutation({
+export const addProject = crmMutation({
   args: { client_id: v.id('clients'), fields: v.object(projectFields) },
   handler: async (ctx, { client_id, fields }) => {
     const now = new Date().toISOString()
@@ -219,14 +219,14 @@ export const addProject = mutation({
   },
 })
 
-export const updateProject = mutation({
+export const updateProject = crmMutation({
   args: { id: v.id('projects'), updates: projectUpdate },
   handler: async (ctx, { id, updates }) => {
     await ctx.db.patch(id, { ...updates, updated_at: new Date().toISOString() })
   },
 })
 
-export const removeProject = mutation({
+export const removeProject = crmMutation({
   args: { id: v.id('projects') },
   handler: async (ctx, { id }) => {
     await ctx.db.delete(id)
@@ -235,7 +235,7 @@ export const removeProject = mutation({
 
 // ---- Subscriptions --------------------------------------------------------
 
-export const addSubscription = mutation({
+export const addSubscription = crmMutation({
   args: { client_id: v.id('clients'), fields: v.object(subscriptionFields) },
   handler: async (ctx, { client_id, fields }) => {
     const now = new Date().toISOString()
@@ -243,14 +243,14 @@ export const addSubscription = mutation({
   },
 })
 
-export const updateSubscription = mutation({
+export const updateSubscription = crmMutation({
   args: { id: v.id('subscriptions'), updates: subscriptionUpdate },
   handler: async (ctx, { id, updates }) => {
     await ctx.db.patch(id, { ...updates, updated_at: new Date().toISOString() })
   },
 })
 
-export const removeSubscription = mutation({
+export const removeSubscription = crmMutation({
   args: { id: v.id('subscriptions') },
   handler: async (ctx, { id }) => {
     await ctx.db.delete(id)
@@ -259,7 +259,7 @@ export const removeSubscription = mutation({
 
 // ---- History --------------------------------------------------------------
 
-export const addActivity = mutation({
+export const addActivity = crmMutation({
   args: { client_id: v.id('clients'), type: v.string(), note: strOrNull },
   handler: async (ctx, { client_id, type, note }) => {
     await ctx.db.insert('client_activities', {

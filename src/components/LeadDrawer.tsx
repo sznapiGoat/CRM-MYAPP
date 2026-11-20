@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from 'convex/react'
+import { crmToken } from '@/lib/crmToken'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import * as db from '@/lib/db'
@@ -575,7 +576,7 @@ function EditRow({ label, children }: { label: string; children: React.ReactNode
 
 // Closed lead -> client. Shows a link once the lead has been converted.
 function ClientLink({ leadId }: { leadId: string }) {
-  const client = useQuery(api.clients.byLead, { lead_id: leadId as Id<'leads'> })
+  const client = useQuery(api.clients.byLead, { token: crmToken(), lead_id: leadId as Id<'leads'> })
   const [busy, setBusy] = useState(false)
   if (client === undefined) return null
 

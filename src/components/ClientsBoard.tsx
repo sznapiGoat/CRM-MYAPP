@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from 'convex/react'
+import { crmToken } from '@/lib/crmToken'
 import { api } from '../../convex/_generated/api'
 import * as db from '@/lib/db'
 import {
@@ -42,8 +43,8 @@ function upcoming(projects: Project[], subs: Subscription[], clients: Client[]) 
 }
 
 export default function ClientsBoard() {
-  const data = useQuery(api.clients.overview) as Overview | undefined
-  const weeks = useQuery(api.activities.weeklyStats, { weeks: 8 }) as WeekStats[] | undefined
+  const data = useQuery(api.clients.overview, { token: crmToken() }) as Overview | undefined
+  const weeks = useQuery(api.activities.weeklyStats, { token: crmToken(), weeks: 8 }) as WeekStats[] | undefined
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showEnded, setShowEnded] = useState(false)
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from 'convex/react'
+import { crmToken } from '@/lib/crmToken'
 import Link from 'next/link'
 import * as db from '@/lib/db'
 import { hasWeb, leadScore } from '@/lib/score'
@@ -68,7 +69,7 @@ function makeRestore<K extends keyof Lead>(affected: Lead[], field: K): () => vo
 
 export default function Dashboard() {
   // Live, reactive lead list — updates in real time across tabs/devices.
-  const leadsData = useQuery(api.leads.list) as Lead[] | undefined
+  const leadsData = useQuery(api.leads.list, { token: crmToken() }) as Lead[] | undefined
   const loading = leadsData === undefined
   const leads = useMemo(() => leadsData ?? [], [leadsData])
 

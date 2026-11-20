@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useQuery } from 'convex/react'
+import { crmToken } from '@/lib/crmToken'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import * as db from '@/lib/db'
@@ -376,7 +377,7 @@ const ACTIVITY_LABELS: Record<ClientActivity['type'], string> = {
 }
 
 function History({ clientId }: { clientId: string }) {
-  const items = useQuery(api.clients.activities, { client_id: clientId as Id<'clients'> }) as ClientActivity[] | undefined
+  const items = useQuery(api.clients.activities, { token: crmToken(), client_id: clientId as Id<'clients'> }) as ClientActivity[] | undefined
   const [type, setType] = useState<ClientActivity['type']>('call')
   const [note, setNote] = useState('')
 

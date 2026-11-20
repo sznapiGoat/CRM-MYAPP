@@ -1,4 +1,4 @@
-import { query, mutation } from './_generated/server'
+import { crmQuery, crmMutation } from './auth'
 import { v } from 'convex/values'
 import { Doc } from './_generated/dataModel'
 
@@ -41,7 +41,7 @@ const leadUpdate = v.object({
   kontrola: v.optional(v.union(v.string(), v.null())),
 })
 
-export const list = query({
+export const list = crmQuery({
   args: {},
   handler: async (ctx) => {
     const docs = await ctx.db.query('leads').collect()
@@ -50,7 +50,7 @@ export const list = query({
   },
 })
 
-export const update = mutation({
+export const update = crmMutation({
   args: { id: v.id('leads'), updates: leadUpdate },
   handler: async (ctx, { id, updates }) => {
     await ctx.db.patch(id, { ...updates, updated_at: new Date().toISOString() })
@@ -59,7 +59,7 @@ export const update = mutation({
   },
 })
 
-export const bulkUpdate = mutation({
+export const bulkUpdate = crmMutation({
   args: { ids: v.array(v.id('leads')), updates: leadUpdate },
   handler: async (ctx, { ids, updates }) => {
     const now = new Date().toISOString()
@@ -69,7 +69,7 @@ export const bulkUpdate = mutation({
   },
 })
 
-export const bulkDelete = mutation({
+export const bulkDelete = crmMutation({
   args: { ids: v.array(v.id('leads')) },
   handler: async (ctx, { ids }) => {
     for (const id of ids) {
@@ -89,7 +89,7 @@ export const bulkDelete = mutation({
 // Accepts partial rows (import/webhook) and fills required fields with defaults.
 // Rows without a Maps URL but with an IČO (dráha B) are keyed as `ico:<IČO>`,
 // the same way manual leads use `manual:<uuid>`.
-export const upsert = mutation({
+export const upsert = crmMutation({
   args: { rows: v.array(v.any()) },
   handler: async (ctx, { rows }) => {
     let inserted = 0

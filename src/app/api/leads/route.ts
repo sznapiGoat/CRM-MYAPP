@@ -9,6 +9,8 @@ const stripBom = (s: string) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s)
 const convexUrl = () =>
   stripBom(process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.CONVEX_URL ?? '')
 
+const token = () => process.env.CRM_TOKEN ?? ''
+
 const missingConvexUrl = () =>
   NextResponse.json(
     { error: 'CONVEX_URL is not configured' },
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     const convex = new ConvexHttpClient(url)
     // upsert-by-google_maps_url with ignoreDuplicates semantics lives in Convex
-    const { inserted } = await convex.mutation(api.leads.upsert, { rows: [body] })
+    const { inserted } = await convex.mutation(api.leads.upsert, { token: token(), rows: [body] })
 
     return NextResponse.json({ ok: true, inserted }, { headers: JSON_HEADERS })
   } catch {
@@ -62,7 +64,7 @@ export async function GET(req: NextRequest) {
   if (!url) return missingConvexUrl()
 
   const convex = new ConvexHttpClient(url)
-  const leads = await convex.query(api.leads.list, {})
+  const leads = await convex.query(api.leads.list, { token: token() })
 
   const params = req.nextUrl.searchParams
   const draha = params.get('draha')
@@ -117,6 +119,7 @@ export async function PATCH(req: NextRequest) {
 
     const convex = new ConvexHttpClient(url)
     const lead = await convex.mutation(api.leads.update, {
+      token: token(),
       id: body.id as never,
       updates,
     })
